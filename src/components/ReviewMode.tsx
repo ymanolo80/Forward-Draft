@@ -22,6 +22,10 @@ interface SelectionInfo {
 }
 
 type ReviewView = "scene" | "full";
+interface NoteAnchor {
+  x: number;
+  y: number;
+}
 
 function annotationClass(annotation: Highlight | ReviewNote) {
   if ("color" in annotation && annotation.color === "underline") return "script-underline";
@@ -33,7 +37,7 @@ function applyAnnotations(
   text: string,
   highlights: Highlight[],
   notes: ReviewNote[],
-  onOpenNote: (noteId: string) => void,
+  onOpenNote: (noteId: string, anchor?: NoteAnchor) => void,
 ) {
   const noteRanges = notes
     .filter((note) => !note.resolved && note.rangeEnd > note.rangeStart)
@@ -52,7 +56,11 @@ function applyAnnotations(
       <mark
         className={annotationClass(annotation)}
         key={`${annotation.rangeStart}-${annotation.rangeEnd}-${noteId ?? annotation.selectedText}`}
-        onClick={() => noteId && onOpenNote(noteId)}
+        onClick={(event) => {
+          if (!noteId) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          onOpenNote(noteId, { x: rect.right, y: rect.bottom });
+        }}
       >
         {text.slice(annotation.rangeStart, annotation.rangeEnd)}
         {noteId && (
@@ -60,7 +68,8 @@ function applyAnnotations(
             className="note-pin"
             onClick={(event) => {
               event.stopPropagation();
-              onOpenNote(noteId);
+              const rect = event.currentTarget.getBoundingClientRect();
+              onOpenNote(noteId, { x: rect.right, y: rect.bottom });
             }}
             type="button"
             aria-label="Open note"
@@ -92,6 +101,7 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
   const [composerOpen, setComposerOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [activeNoteId, setActiveNoteId] = useState<string | undefined>();
+  const [noteAnchor, setNoteAnchor] = useState<NoteAnchor | undefined>();
   const sceneRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const sortedScenes = [...project.scenes].sort((a, b) => a.order - b.order);
@@ -235,6 +245,19 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
       })),
     });
     setActiveNoteId(undefined);
+    setNoteAnchor(undefined);
+  };
+
+  const openNote = (noteId: string, anchor?: NoteAnchor) => {
+    if (anchor) {
+      setNoteAnchor({
+        x: Math.max(18, Math.min(anchor.x + 18, window.innerWidth - 390)),
+        y: Math.max(92, Math.min(anchor.y + 12, window.innerHeight - 300)),
+      });
+    } else {
+      setNoteAnchor(undefined);
+    }
+    setActiveNoteId(noteId);
   };
 
   const openScene = (sceneId: string) => {
@@ -242,6 +265,7 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
     setShowScenes(false);
     setSelection(undefined);
     setActiveNoteId(undefined);
+    setNoteAnchor(undefined);
     if (reviewView === "full") {
       window.setTimeout(() => sceneRefs.current[sceneId]?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
     }
@@ -348,7 +372,7 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
                     tabIndex={0}
                     aria-label="Read-only script page"
                   >
-                    {applyAnnotations(current.text, highlights, notes, setActiveNoteId)}
+                    {applyAnnotations(current.text, highlights, notes, openNote)}
                   </pre>
                 </article>
               </>
@@ -380,7 +404,7 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
                           tabIndex={0}
                           aria-label={`Read-only scene ${item.order}`}
                         >
-                          {applyAnnotations(version.text, itemHighlights, itemNotes, setActiveNoteId)}
+                          {applyAnnotations(version.text, itemHighlights, itemNotes, openNote)}
                         </pre>
                       </article>
                     );
@@ -468,7 +492,7 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
                 <h3>Notes</h3>
                 <div className="notes-drawer-list">
                   {notes.map((note) => (
-                    <button key={note.noteId} className="note-drawer-card" onClick={() => setActiveNoteId(note.noteId)}>
+                    <button key={note.noteId} className="note-drawer-card" onClick={() => openNote(note.noteId)}>
                       <strong>Note</strong>
                       <span>{note.noteText || note.selectedText || "Highlight only"}</span>
                     </button>
@@ -478,11 +502,11 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
               </section>
             )}
 
-            <section className="tool-section">
-              <h3>History</h3>
-              <div className="icon-button-row">
-                <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↶</button>
-                <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↷</button>
+          <section className="tool-section">
+            <h3>Undo / Redo</h3>
+            <div className="icon-button-row">
+              <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↺</button>
+              <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↻</button>
               </div>
             </section>
 
@@ -506,10 +530,21 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
           )}
 
           {activeNote && (
-            <div className="note-popover">
+            <div
+              className={`note-popover ${noteAnchor ? "anchored-note-popover" : ""}`}
+              style={noteAnchor ? { left: `${noteAnchor.x}px`, top: `${noteAnchor.y}px` } : undefined}
+            >
               <header>
                 <strong>Note</strong>
-                <button onClick={() => setActiveNoteId(undefined)} aria-label="Close note">Close</button>
+                <button
+                  onClick={() => {
+                    setActiveNoteId(undefined);
+                    setNoteAnchor(undefined);
+                  }}
+                  aria-label="Close note"
+                >
+                  Close
+                </button>
               </header>
               {activeNote.selectedText && <p>{activeNote.selectedText}</p>}
               <textarea

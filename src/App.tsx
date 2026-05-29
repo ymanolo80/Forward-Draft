@@ -255,23 +255,10 @@ export function App() {
     <div className={`app mode-${mode}`}>
       <header className="global-topbar">
         <div className="topbar-project">
-          <select
-            className="project-picker"
-            aria-label="Project name"
-            name="active-project"
-            value={data.activeProjectId ?? ""}
-            onChange={(event) => setData({ ...data, activeProjectId: event.target.value })}
-          >
-            {data.projects.map((project) => (
-              <option key={project.projectId} value={project.projectId}>
-                {project.title}
-              </option>
-            ))}
-          </select>
+          <strong>Forward Draft</strong>
         </div>
 
         <div className="topbar-center">
-          <strong>Forward Draft</strong>
           <nav className="mode-tabs" aria-label="Workflow modes">
             <button className={mode === "write" ? "active" : ""} onClick={() => setMode("write")}>
               Write
@@ -300,6 +287,23 @@ export function App() {
                   {activeProject && (
                     <div className="menu-status">{activeProject.writingMode === "script" ? "Script project" : "Freewriting project"}</div>
                   )}
+                  <label>
+                    Current Project
+                    <select
+                      name="active-project"
+                      value={data.activeProjectId ?? ""}
+                      onChange={(event) => {
+                        setData({ ...data, activeProjectId: event.target.value });
+                        setOptionsOpen(false);
+                      }}
+                    >
+                      {data.projects.map((project) => (
+                        <option key={project.projectId} value={project.projectId}>
+                          {project.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <button onClick={() => { rename(); setOptionsOpen(false); }} disabled={!activeProject}>Rename Project</button>
                   <button onClick={() => { duplicate(); setOptionsOpen(false); }} disabled={!activeProject}>Duplicate Project</button>
                   <button onClick={() => { deleteActive(); setOptionsOpen(false); }} disabled={!activeProject}>Delete Project</button>
@@ -315,23 +319,6 @@ export function App() {
                   <strong>File</strong>
                   <button onClick={() => { createNew("script"); setOptionsOpen(false); }}>New Script Project</button>
                   <button onClick={() => { createNew("freewrite"); setOptionsOpen(false); }}>New Freewriting Project</button>
-                  <label>
-                    Open Project
-                    <select
-                      name="open-project"
-                      value={data.activeProjectId ?? ""}
-                      onChange={(event) => {
-                        setData({ ...data, activeProjectId: event.target.value });
-                        setOptionsOpen(false);
-                      }}
-                    >
-                      {data.projects.map((project) => (
-                        <option key={project.projectId} value={project.projectId}>
-                          {project.title}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                   <label className="menu-file">
                     Import Project
                     <input

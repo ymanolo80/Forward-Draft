@@ -261,10 +261,10 @@ export function RewriteMode({ data, project, setData, stats, onUndo, onRedo, can
           )}
 
           <section className="tool-section">
-            <h3>History</h3>
+            <h3>Undo / Redo</h3>
             <div className="icon-button-row">
-              <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↶</button>
-              <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↷</button>
+              <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↺</button>
+              <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↻</button>
             </div>
           </section>
 

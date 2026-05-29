@@ -116,14 +116,15 @@ p {
 }
 
 .topbar-center {
-  display: grid;
+  display: flex;
   justify-items: center;
   gap: 5px;
 }
 
-.topbar-center strong {
+.topbar-project strong {
   font-size: 13px;
   white-space: nowrap;
+  letter-spacing: 0;
 }
 
 .project-picker {
@@ -486,7 +487,8 @@ p {
   width: 44px;
   min-height: 38px;
   padding: 0;
-  font-size: 18px;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 .tools-stats {
@@ -963,6 +965,32 @@ mark {
   gap: 10px;
 }
 
+.anchored-note-popover {
+  right: auto;
+  bottom: auto;
+  width: min(340px, calc(100vw - 32px));
+}
+
+.anchored-note-popover::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  top: 18px;
+  width: 20px;
+  border-top: 1px solid #9bb6be;
+}
+
+.anchored-note-popover::after {
+  content: "";
+  position: absolute;
+  left: -23px;
+  top: 15px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9bb6be;
+}
+
 .annotation-popover {
   left: 50%;
   right: auto;
@@ -1374,6 +1402,12 @@ mark {
     width: auto;
     transform: none;
   }
+
+  .anchored-note-popover {
+    right: auto;
+    bottom: auto;
+    width: min(340px, calc(100vw - 32px));
+  }
 }
 
 @media (max-width: 720px) {
@@ -1393,10 +1427,6 @@ mark {
 
   .topbar-project {
     min-width: 0;
-  }
-
-  .topbar-center strong {
-    display: none;
   }
 
   .project-picker {

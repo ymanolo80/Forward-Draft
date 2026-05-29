@@ -318,6 +318,9 @@ export function WriteMode({
   const draftWords = countWords(project.drafts.map((block) => block.text).join(" "));
   const liveElement = project.writingMode === "script" ? element : element === "Chapter Heading" ? "Chapter Heading" : "General Text";
   const suggestions = project.writingMode === "script" ? elementSuggestions(element, activeText, project) : [];
+  const keepVisibleUntilSectionChange =
+    visibility === "previousScene" ||
+    (project.writingMode === "freewrite" && (visibility === "previousBlock" || visibility === "previousChapter"));
   const writeVisibilityOptions = visibilityOptions.filter((option) => {
     if (project.writingMode === "script") return option.value !== "previousBlock" && option.value !== "previousChapter";
     return option.value !== "previousScene";
@@ -344,7 +347,7 @@ export function WriteMode({
                 {recentBlocks.map((block, index) => (
                   <div
                     className={`script-line ${elementClass(block.element)} ${
-                      visibility !== "previousScene" && (index < recentBlocks.length - 1 || shouldFade) ? "faded" : ""
+                      !keepVisibleUntilSectionChange && (index < recentBlocks.length - 1 || shouldFade) ? "faded" : ""
                     }`}
                     key={block.blockId}
                   >
@@ -501,10 +504,10 @@ export function WriteMode({
           </section>
 
           <section className="tool-section">
-            <h3>History</h3>
+            <h3>Undo / Redo</h3>
             <div className="icon-button-row">
-              <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↶</button>
-              <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↷</button>
+              <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↺</button>
+              <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↻</button>
             </div>
           </section>
 
