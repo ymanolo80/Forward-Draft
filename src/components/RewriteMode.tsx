@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AppData, Project, ReviewNote, Scene } from "../types";
+import { ToolFontControls } from "./ToolFontControls";
+import type { AppData, FontSettings, Project, ReviewNote, Scene } from "../types";
 import { createId, nowIso } from "../lib/ids";
 
 interface RewriteModeProps {
@@ -11,6 +12,8 @@ interface RewriteModeProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  fontSettings: FontSettings;
+  setFontSettings: (next: FontSettings) => void;
 }
 
 type DisplayMode = "single" | "all";
@@ -30,7 +33,18 @@ function highlightText(text: string, notes: ReviewNote[]) {
   return parts;
 }
 
-export function RewriteMode({ data, project, setData, stats, onUndo, onRedo, canUndo, canRedo }: RewriteModeProps) {
+export function RewriteMode({
+  data,
+  project,
+  setData,
+  stats,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  fontSettings,
+  setFontSettings,
+}: RewriteModeProps) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>("single");
   const [showNotes, setShowNotes] = useState(true);
   const [showContext, setShowContext] = useState(false);
@@ -225,11 +239,6 @@ export function RewriteMode({ data, project, setData, stats, onUndo, onRedo, can
           </header>
 
           <section className="tool-section">
-            <h3>Queue</h3>
-            <button className="tool-wide-button" onClick={() => setQueueOpen((open) => !open)}>{queueOpen ? "Hide Queue" : "Show Queue"}</button>
-          </section>
-
-          <section className="tool-section">
             <h3>Workspace</h3>
             <div className="segmented">
               <button className={displayMode === "single" ? "active" : ""} onClick={() => setDisplayMode("single")}>
@@ -249,6 +258,11 @@ export function RewriteMode({ data, project, setData, stats, onUndo, onRedo, can
             </label>
           </section>
 
+          <section className="tool-section">
+            <h3>Queue</h3>
+            <button className="tool-wide-button" onClick={() => setQueueOpen((open) => !open)}>{queueOpen ? "Hide Queue" : "Show Queue"}</button>
+          </section>
+
           {selected && (
             <section className="tool-section">
               <h3>Selected {sectionLabel}</h3>
@@ -259,6 +273,8 @@ export function RewriteMode({ data, project, setData, stats, onUndo, onRedo, can
               </div>
             </section>
           )}
+
+          <ToolFontControls fontSettings={fontSettings} setFontSettings={setFontSettings} />
 
           <section className="tool-section">
             <h3>Undo / Redo</h3>

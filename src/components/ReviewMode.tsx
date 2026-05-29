@@ -1,5 +1,6 @@
 import { Fragment, useRef, useState } from "react";
-import type { AppData, Highlight, Project, ReviewNote, Scene, SceneVersion } from "../types";
+import { ToolFontControls } from "./ToolFontControls";
+import type { AppData, FontSettings, Highlight, Project, ReviewNote, Scene, SceneVersion } from "../types";
 import { createId, nowIso } from "../lib/ids";
 
 interface ReviewModeProps {
@@ -11,6 +12,8 @@ interface ReviewModeProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  fontSettings: FontSettings;
+  setFontSettings: (next: FontSettings) => void;
 }
 
 interface SelectionInfo {
@@ -38,31 +41,35 @@ function applyAnnotations(
   highlights: Highlight[],
   notes: ReviewNote[],
   onOpenNote: (noteId: string, anchor?: NoteAnchor) => void,
+  offset = 0,
 ) {
   const noteRanges = notes
     .filter((note) => !note.resolved && note.rangeEnd > note.rangeStart)
     .filter((note) => !highlights.some((highlight) => highlight.noteId === note.noteId));
   const annotations = [...highlights, ...noteRanges]
     .filter((item) => item.rangeEnd > item.rangeStart)
+    .filter((item) => item.rangeEnd > offset && item.rangeStart < offset + text.length)
     .sort((a, b) => a.rangeStart - b.rangeStart);
   let cursor = 0;
   const parts: React.ReactNode[] = [];
 
   annotations.forEach((annotation) => {
-    if (annotation.rangeStart < cursor) return;
-    parts.push(text.slice(cursor, annotation.rangeStart));
+    const rangeStart = Math.max(0, annotation.rangeStart - offset);
+    const rangeEnd = Math.min(text.length, annotation.rangeEnd - offset);
+    if (rangeStart < cursor) return;
+    parts.push(text.slice(cursor, rangeStart));
     const noteId = "noteId" in annotation ? annotation.noteId : annotation.noteId;
     parts.push(
       <mark
         className={annotationClass(annotation)}
-        key={`${annotation.rangeStart}-${annotation.rangeEnd}-${noteId ?? annotation.selectedText}`}
+        key={`${rangeStart}-${rangeEnd}-${noteId ?? annotation.selectedText}`}
         onClick={(event) => {
           if (!noteId) return;
           const rect = event.currentTarget.getBoundingClientRect();
           onOpenNote(noteId, { x: rect.right, y: rect.top + rect.height / 2 });
         }}
       >
-        {text.slice(annotation.rangeStart, annotation.rangeEnd)}
+        {text.slice(rangeStart, rangeEnd)}
         {noteId && (
           <button
             className="note-pin"
@@ -79,14 +86,35 @@ function applyAnnotations(
         )}
       </mark>,
     );
-    cursor = annotation.rangeEnd;
+    cursor = rangeEnd;
   });
 
   parts.push(text.slice(cursor));
   return parts;
 }
 
-export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canUndo, canRedo }: ReviewModeProps) {
+function splitSceneText(text: string) {
+  const headingEnd = text.indexOf("\n");
+  if (headingEnd < 0) return { heading: text, body: "", bodyOffset: text.length };
+  return {
+    heading: text.slice(0, headingEnd),
+    body: text.slice(headingEnd),
+    bodyOffset: headingEnd,
+  };
+}
+
+export function ReviewMode({
+  data,
+  project,
+  setData,
+  stats,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  fontSettings,
+  setFontSettings,
+}: ReviewModeProps) {
   const [selectedSceneId, setSelectedSceneId] = useState(project.scenes[0]?.sceneId);
   const [reviewView, setReviewView] = useState<ReviewView>("scene");
   const [compare, setCompare] = useState(false);
@@ -338,6 +366,49 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
     );
   };
 
+  const renderReadOnlyScript = (
+    item: Scene,
+    version: SceneVersion,
+    itemHighlights: Highlight[],
+    itemNotes: ReviewNote[],
+    label: string,
+  ) => {
+    if (project.writingMode !== "script") {
+      return (
+        <pre
+          className="read-only-script"
+          onMouseUp={() => captureSelection(item, version)}
+          onKeyUp={() => captureSelection(item, version)}
+          tabIndex={0}
+          aria-label={label}
+        >
+          {applyAnnotations(version.text, itemHighlights, itemNotes, openNote)}
+        </pre>
+      );
+    }
+
+    const { heading, body, bodyOffset } = splitSceneText(version.text);
+    return (
+      <div
+        className="read-only-script script-display"
+        onMouseUp={() => captureSelection(item, version)}
+        onKeyUp={() => captureSelection(item, version)}
+        tabIndex={0}
+        aria-label={label}
+      >
+        <div className="screenplay-heading-line">
+          <span className="screenplay-scene-number">{item.order}</span>
+          <span>{heading}</span>
+        </div>
+        {body && (
+          <pre className="script-body-text">
+            {applyAnnotations(body, itemHighlights, itemNotes, openNote, bodyOffset)}
+          </pre>
+        )}
+      </div>
+    );
+  };
+
   return (
     <section className="mode-panel review-panel">
       {scene && current ? (
@@ -360,20 +431,18 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
                 {compare && compareTarget && (
                   <article className="script-page compare-page">
                     <div className="script-page-meta">Compare · V{compareTarget.versionNumber}</div>
-                    <pre>{compareTarget.text}</pre>
+                    {renderReadOnlyScript(
+                      scene,
+                      compareTarget,
+                      sceneHighlights(scene, compareTarget),
+                      sceneNotes(scene, compareTarget),
+                      "Compare script page",
+                    )}
                   </article>
                 )}
 
                 <article className="script-page review-page">
-                  <pre
-                    className="read-only-script"
-                    onMouseUp={() => captureSelection(scene, current)}
-                    onKeyUp={() => captureSelection(scene, current)}
-                    tabIndex={0}
-                    aria-label="Read-only script page"
-                  >
-                    {applyAnnotations(current.text, highlights, notes, openNote)}
-                  </pre>
+                  {renderReadOnlyScript(scene, current, highlights, notes, "Read-only script page")}
                 </article>
               </>
             ) : (
@@ -394,18 +463,7 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
                           sceneRefs.current[item.sceneId] = node;
                         }}
                       >
-                        <div className="review-page-toolbar review-actions-only">
-                          <span>{project.writingMode === "script" ? `${item.heading} #${item.order}` : `Chapter ${item.order}: ${item.heading}`}</span>
-                        </div>
-                        <pre
-                          className="read-only-script"
-                          onMouseUp={() => captureSelection(item, version)}
-                          onKeyUp={() => captureSelection(item, version)}
-                          tabIndex={0}
-                          aria-label={`Read-only scene ${item.order}`}
-                        >
-                          {applyAnnotations(version.text, itemHighlights, itemNotes, openNote)}
-                        </pre>
+                        {renderReadOnlyScript(item, version, itemHighlights, itemNotes, `Read-only scene ${item.order}`)}
                       </article>
                     );
                   })}
@@ -501,6 +559,8 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
                 </div>
               </section>
             )}
+
+            <ToolFontControls fontSettings={fontSettings} setFontSettings={setFontSettings} />
 
             <section className="tool-section">
               <h3>Undo / Redo</h3>

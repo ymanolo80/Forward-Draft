@@ -1,5 +1,6 @@
 export type AppMode = "write" | "review" | "rewrite";
 export type WritingMode = "script" | "freewrite";
+export type FontFamilyChoice = "screenplay" | "system" | "serif";
 export type ScriptElement =
   | "Scene Heading"
   | "Action"
@@ -124,4 +125,10 @@ export interface AppData {
   highlights: Highlight[];
   tasks: RewriteTask[];
   activeProjectId?: string;
+}
+
+export interface FontSettings {
+  family: FontFamilyChoice;
+  size: number;
+  lineHeight: number;
 }

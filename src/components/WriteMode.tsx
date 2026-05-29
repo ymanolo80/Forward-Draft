@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AppData, DraftBlock, FadeTiming, Project, ScriptElement, VisibilityRule } from "../types";
+import { ToolFontControls } from "./ToolFontControls";
+import type { AppData, DraftBlock, FadeTiming, FontSettings, Project, ScriptElement, VisibilityRule } from "../types";
 import { blockToFountain, cycleElement, draftBlocksToScenes, elementClass, inferNextElement, scriptElements } from "../lib/fountain";
 import { createId, nowIso } from "../lib/ids";
 
@@ -16,6 +17,8 @@ interface WriteModeProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  fontSettings: FontSettings;
+  setFontSettings: (next: FontSettings) => void;
 }
 
 type InsertPlacement = "append" | "before" | "after";
@@ -33,10 +36,6 @@ function fadeDelay(timing: FadeTiming) {
   if (timing === "5s") return 5000;
   if (timing === "10s") return 10000;
   return 3000;
-}
-
-function countWords(value: string) {
-  return value.trim().split(/\s+/).filter(Boolean).length;
 }
 
 const scenePrefixes = ["INT.", "EXT.", "INT./EXT.", "EXT./INT.", "EST."];
@@ -130,6 +129,8 @@ export function WriteMode({
   onRedo,
   canUndo,
   canRedo,
+  fontSettings,
+  setFontSettings,
 }: WriteModeProps) {
   const [element, setElement] = useState<ScriptElement>("Action");
   const [activeText, setActiveText] = useState("");
@@ -315,7 +316,6 @@ export function WriteMode({
   }, [project.drafts, project.writingMode, visibility]);
 
   const shouldFade = fadeTiming !== "nextBlock" && clock - activeStartedAt >= fadeDelay(fadeTiming);
-  const draftWords = countWords(project.drafts.map((block) => block.text).join(" "));
   const liveElement = project.writingMode === "script" ? element : element === "Chapter Heading" ? "Chapter Heading" : "General Text";
   const suggestions = project.writingMode === "script" ? elementSuggestions(element, activeText, project) : [];
   const keepVisibleUntilSectionChange =
@@ -333,13 +333,6 @@ export function WriteMode({
     <section className="mode-panel write-panel">
       <div className="mode-workspace write-workspace">
         <main className="document-stage">
-          <div className="mode-status">
-            <div>
-              <span>Write</span>
-              <strong>{draftWords + countWords(activeText)} words</strong>
-            </div>
-          </div>
-
           <div className="page-shell write-shell">
             <article className="script-page write-page" onClick={() => inputRef.current?.focus()}>
               <div className="locked-draft" aria-label="Recent draft text">
@@ -494,6 +487,8 @@ export function WriteMode({
               </div>
             </section>
           )}
+
+          <ToolFontControls fontSettings={fontSettings} setFontSettings={setFontSettings} />
 
           <section className="tool-section">
             <h3>Undo / Redo</h3>

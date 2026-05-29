@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ReviewMode } from "./components/ReviewMode";
 import { RewriteMode } from "./components/RewriteMode";
 import { WriteMode } from "./components/WriteMode";
@@ -6,7 +6,13 @@ import { exportChangesPdf, exportFountainFile, exportFullPdf, exportProjectBacku
 import { createId, nowIso } from "./lib/ids";
 import { createProject } from "./lib/seed";
 import { emptyData, loadData, saveData } from "./lib/storage";
-import type { AppData, AppMode, FadeTiming, Project, VisibilityRule, WritingMode } from "./types";
+import type { AppData, AppMode, FadeTiming, FontFamilyChoice, FontSettings, Project, VisibilityRule, WritingMode } from "./types";
+
+const fontFamilyMap: Record<FontFamilyChoice, string> = {
+  screenplay: '"Courier Prime", "Courier New", Courier, monospace',
+  system: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  serif: 'ui-serif, Georgia, "Times New Roman", serif',
+};
 
 function projectText(project: Project | undefined, data: AppData) {
   if (!project) return "";
@@ -32,6 +38,11 @@ export function App() {
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [visibility, setVisibility] = useState<VisibilityRule>("last3");
   const [fadeTiming, setFadeTiming] = useState<FadeTiming>("3s");
+  const [fontSettings, setFontSettings] = useState<FontSettings>({
+    family: "screenplay",
+    size: 16,
+    lineHeight: 1.6,
+  });
   const optionsRef = useRef<HTMLDetailsElement>(null);
 
   const activeProject = useMemo(
@@ -120,6 +131,11 @@ export function App() {
   const text = projectText(activeProject, data);
   const words = wordCount(text);
   const pages = Math.max(1, Math.ceil(words / 250));
+  const appStyle = {
+    "--draft-font-family": fontFamilyMap[fontSettings.family],
+    "--draft-font-size": `${fontSettings.size}px`,
+    "--draft-line-height": String(fontSettings.lineHeight),
+  } as CSSProperties;
 
   const createNew = (writingMode: WritingMode = "script") => {
     const createdAt = nowIso();
@@ -252,7 +268,7 @@ export function App() {
   };
 
   return (
-    <div className={`app mode-${mode}`}>
+    <div className={`app mode-${mode}`} style={appStyle}>
       <header className="global-topbar">
         <div className="topbar-project">
           <strong>Forward Draft</strong>
@@ -378,6 +394,8 @@ export function App() {
                 onRedo={redoLast}
                 canUndo={undoStack.length > 0}
                 canRedo={redoStack.length > 0}
+                fontSettings={fontSettings}
+                setFontSettings={setFontSettings}
               />
             )}
             {mode === "review" && (
@@ -390,6 +408,8 @@ export function App() {
                 onRedo={redoLast}
                 canUndo={undoStack.length > 0}
                 canRedo={redoStack.length > 0}
+                fontSettings={fontSettings}
+                setFontSettings={setFontSettings}
               />
             )}
             {mode === "rewrite" && (
@@ -402,6 +422,8 @@ export function App() {
                 onRedo={redoLast}
                 canUndo={undoStack.length > 0}
                 canRedo={redoStack.length > 0}
+                fontSettings={fontSettings}
+                setFontSettings={setFontSettings}
               />
             )}
           </>
