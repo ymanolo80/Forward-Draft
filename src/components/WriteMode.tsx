@@ -338,7 +338,6 @@ export function WriteMode({
               <span>Write</span>
               <strong>{draftWords + countWords(activeText)} words</strong>
             </div>
-            <span className="mode-badge">{project.writingMode === "script" ? "Script project" : "Freewriting project"}</span>
           </div>
 
           <div className="page-shell write-shell">
@@ -497,13 +496,6 @@ export function WriteMode({
           )}
 
           <section className="tool-section">
-            <h3>Line Actions</h3>
-            <button className="tool-wide-button" onClick={undoLastBlock} disabled={project.drafts.length === 0}>
-              Undo Last Line
-            </button>
-          </section>
-
-          <section className="tool-section">
             <h3>Undo / Redo</h3>
             <div className="icon-button-row">
               <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↺</button>
@@ -512,6 +504,7 @@ export function WriteMode({
           </section>
 
           <footer className="tools-stats" aria-label="Project status">
+            <span>{project.writingMode === "script" ? "Script project" : "Freewriting project"}</span>
             <span><span className="saved-dot" /> Saved</span>
             <span>{stats.words} words</span>
             <span>{stats.pages} page{stats.pages === 1 ? "" : "s"}</span>

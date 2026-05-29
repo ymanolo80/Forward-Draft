@@ -59,7 +59,7 @@ function applyAnnotations(
         onClick={(event) => {
           if (!noteId) return;
           const rect = event.currentTarget.getBoundingClientRect();
-          onOpenNote(noteId, { x: rect.right, y: rect.bottom });
+          onOpenNote(noteId, { x: rect.right, y: rect.top + rect.height / 2 });
         }}
       >
         {text.slice(annotation.rangeStart, annotation.rangeEnd)}
@@ -69,7 +69,7 @@ function applyAnnotations(
             onClick={(event) => {
               event.stopPropagation();
               const rect = event.currentTarget.getBoundingClientRect();
-              onOpenNote(noteId, { x: rect.right, y: rect.bottom });
+              onOpenNote(noteId, { x: rect.right, y: rect.top + rect.height / 2 });
             }}
             type="button"
             aria-label="Open note"
@@ -251,8 +251,8 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
   const openNote = (noteId: string, anchor?: NoteAnchor) => {
     if (anchor) {
       setNoteAnchor({
-        x: Math.max(18, Math.min(anchor.x + 18, window.innerWidth - 390)),
-        y: Math.max(92, Math.min(anchor.y + 12, window.innerHeight - 300)),
+        x: Math.max(18, Math.min(anchor.x + 20, window.innerWidth - 390)),
+        y: Math.max(92, Math.min(anchor.y - 18, window.innerHeight - 300)),
       });
     } else {
       setNoteAnchor(undefined);
@@ -502,15 +502,16 @@ export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canU
               </section>
             )}
 
-          <section className="tool-section">
-            <h3>Undo / Redo</h3>
-            <div className="icon-button-row">
-              <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↺</button>
-              <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↻</button>
+            <section className="tool-section">
+              <h3>Undo / Redo</h3>
+              <div className="icon-button-row">
+                <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↺</button>
+                <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↻</button>
               </div>
             </section>
 
             <footer className="tools-stats" aria-label="Project status">
+              <span>{project.writingMode === "script" ? "Script project" : "Freewriting project"}</span>
               <span><span className="saved-dot" /> Saved</span>
               <span>{stats.words} words</span>
               <span>{stats.pages} page{stats.pages === 1 ? "" : "s"}</span>

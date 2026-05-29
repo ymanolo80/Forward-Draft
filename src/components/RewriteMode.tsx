@@ -269,6 +269,7 @@ export function RewriteMode({ data, project, setData, stats, onUndo, onRedo, can
           </section>
 
           <footer className="tools-stats" aria-label="Project status">
+            <span>{project.writingMode === "script" ? "Script project" : "Freewriting project"}</span>
             <span><span className="saved-dot" /> Saved</span>
             <span>{stats.words} words</span>
             <span>{stats.pages} page{stats.pages === 1 ? "" : "s"}</span>
