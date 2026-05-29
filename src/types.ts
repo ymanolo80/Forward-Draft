@@ -9,6 +9,7 @@ export type ScriptElement =
   | "Transition"
   | "Shot"
   | "Note"
+  | "Chapter Heading"
   | "General Text";
 
 export type VisibilityRule =
@@ -18,7 +19,8 @@ export type VisibilityRule =
   | "last4"
   | "last5"
   | "previousBlock"
-  | "previousScene";
+  | "previousScene"
+  | "previousChapter";
 
 export type FadeTiming = "immediate" | "3s" | "5s" | "10s" | "nextBlock";
 export type SceneStatus = "For Review" | "Needs Rewrite" | "Rewritten" | "Approved";
@@ -63,6 +65,7 @@ export interface Scene {
   status: SceneStatus;
   createdAt: string;
   updatedAt: string;
+  source?: "draft";
 }
 
 export interface SceneVersion {

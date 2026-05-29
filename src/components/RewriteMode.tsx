@@ -6,6 +6,11 @@ interface RewriteModeProps {
   data: AppData;
   project: Project;
   setData: (next: AppData) => void;
+  stats: { words: number; pages: number };
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 type DisplayMode = "single" | "all";
@@ -25,7 +30,7 @@ function highlightText(text: string, notes: ReviewNote[]) {
   return parts;
 }
 
-export function RewriteMode({ data, project, setData }: RewriteModeProps) {
+export function RewriteMode({ data, project, setData, stats, onUndo, onRedo, canUndo, canRedo }: RewriteModeProps) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>("single");
   const [showNotes, setShowNotes] = useState(true);
   const [showContext, setShowContext] = useState(false);
@@ -70,6 +75,7 @@ export function RewriteMode({ data, project, setData }: RewriteModeProps) {
   }, [data.notes, data.tasks, data.versions, project.scenes]);
 
   const selected = queue.find((item) => item?.scene.sceneId === selectedSceneId) ?? queue[0];
+  const sectionLabel = project.writingMode === "freewrite" ? "Chapter" : "Scene";
 
   const markDone = (scene: Scene, text: string) => {
     const oldVersion = data.versions.find((version) => version.versionId === scene.currentVersionId);
@@ -136,7 +142,7 @@ export function RewriteMode({ data, project, setData }: RewriteModeProps) {
         <header>
           <div>
             <p className="eyebrow">
-              Scene {scene.order}
+              {project.writingMode === "script" ? `#${scene.order}` : `Chapter ${scene.order}`}
             </p>
             <h3>{scene.heading}</h3>
           </div>
@@ -148,7 +154,7 @@ export function RewriteMode({ data, project, setData }: RewriteModeProps) {
         </header>
         {showContext && previousVersion && !compact && (
           <aside className="context-scene-block previous-context">
-            <strong>Previous Scene</strong>
+            <strong>Previous {sectionLabel}</strong>
             <pre>{previousVersion.text}</pre>
           </aside>
         )}
@@ -177,7 +183,7 @@ export function RewriteMode({ data, project, setData }: RewriteModeProps) {
         </button>
         {showContext && nextVersion && !compact && (
           <aside className="context-scene-block next-context">
-            <strong>Next Scene</strong>
+            <strong>Next {sectionLabel}</strong>
             <pre>{nextVersion.text}</pre>
           </aside>
         )}
@@ -195,8 +201,7 @@ export function RewriteMode({ data, project, setData }: RewriteModeProps) {
               const selectedClass = item.scene.sceneId === selected?.scene.sceneId ? "selected" : "";
               return (
                 <button key={item.scene.sceneId} className={selectedClass} onClick={() => jumpTo(item.scene.sceneId)}>
-                  <strong>Scene {item.scene.order}</strong>
-                  <span>{item.scene.heading}</span>
+                  <strong>{project.writingMode === "script" ? `${item.scene.heading} #${item.scene.order}` : `Chapter ${item.scene.order}: ${item.scene.heading}`}</strong>
                   <small>
                     {item.scene.status} · V{item.version?.versionNumber ?? 1} · {item.notes.length} notes
                   </small>
@@ -206,7 +211,7 @@ export function RewriteMode({ data, project, setData }: RewriteModeProps) {
           </aside>
         )}
         <main className="rewrite-main">
-          {queue.length === 0 && <div className="empty-state">No rewrite scenes in the queue.</div>}
+          {queue.length === 0 && <div className="empty-state">No rewrite {sectionLabel.toLowerCase()}s in the queue.</div>}
           {displayMode === "single" && selected && (
             renderRewriteScene(selected)
           )}
@@ -216,7 +221,7 @@ export function RewriteMode({ data, project, setData }: RewriteModeProps) {
         <aside className="mode-tools rewrite-tools" aria-label="Rewrite tools">
           <header className="mode-tools-header">
             <span>Rewrite Tools</span>
-            <strong>{queue.length} scene{queue.length === 1 ? "" : "s"} in queue</strong>
+            <strong>{queue.length} {sectionLabel.toLowerCase()}{queue.length === 1 ? "" : "s"} in queue</strong>
           </header>
 
           <section className="tool-section">
@@ -228,10 +233,10 @@ export function RewriteMode({ data, project, setData }: RewriteModeProps) {
             <h3>Workspace</h3>
             <div className="segmented">
               <button className={displayMode === "single" ? "active" : ""} onClick={() => setDisplayMode("single")}>
-                Single Scene
+                Single {sectionLabel}
               </button>
               <button className={displayMode === "all" ? "active" : ""} onClick={() => setDisplayMode("all")}>
-                All Scenes
+                All {sectionLabel}s
               </button>
             </div>
             <label className="compact-check">
@@ -240,20 +245,34 @@ export function RewriteMode({ data, project, setData }: RewriteModeProps) {
             </label>
             <label className="compact-check">
               <input name="rewrite-context" type="checkbox" checked={showContext} onChange={(event) => setShowContext(event.target.checked)} />
-              Previous/next scene
+              Previous/next {sectionLabel.toLowerCase()}
             </label>
           </section>
 
           {selected && (
             <section className="tool-section">
-              <h3>Selected Scene</h3>
+              <h3>Selected {sectionLabel}</h3>
               <div className="tool-summary">
                 <strong>{selected.scene.heading}</strong>
-                <span>Scene {selected.scene.order} · {selected.scene.status}</span>
+                <span>{sectionLabel} {selected.scene.order} · {selected.scene.status}</span>
                 <span>{selected.notes.length} open note{selected.notes.length === 1 ? "" : "s"}</span>
               </div>
             </section>
           )}
+
+          <section className="tool-section">
+            <h3>History</h3>
+            <div className="icon-button-row">
+              <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↶</button>
+              <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↷</button>
+            </div>
+          </section>
+
+          <footer className="tools-stats" aria-label="Project status">
+            <span><span className="saved-dot" /> Saved</span>
+            <span>{stats.words} words</span>
+            <span>{stats.pages} page{stats.pages === 1 ? "" : "s"}</span>
+          </footer>
         </aside>
       </div>
     </section>

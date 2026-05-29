@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import type { AppData, Highlight, Project, ReviewNote, Scene, SceneVersion } from "../types";
 import { createId, nowIso } from "../lib/ids";
 
@@ -6,6 +6,11 @@ interface ReviewModeProps {
   data: AppData;
   project: Project;
   setData: (next: AppData) => void;
+  stats: { words: number; pages: number };
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 interface SelectionInfo {
@@ -50,6 +55,19 @@ function applyAnnotations(
         onClick={() => noteId && onOpenNote(noteId)}
       >
         {text.slice(annotation.rangeStart, annotation.rangeEnd)}
+        {noteId && (
+          <button
+            className="note-pin"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenNote(noteId);
+            }}
+            type="button"
+            aria-label="Open note"
+          >
+            N
+          </button>
+        )}
       </mark>,
     );
     cursor = annotation.rangeEnd;
@@ -59,24 +77,30 @@ function applyAnnotations(
   return parts;
 }
 
-export function ReviewMode({ data, project, setData }: ReviewModeProps) {
+export function ReviewMode({ data, project, setData, stats, onUndo, onRedo, canUndo, canRedo }: ReviewModeProps) {
   const [selectedSceneId, setSelectedSceneId] = useState(project.scenes[0]?.sceneId);
   const [reviewView, setReviewView] = useState<ReviewView>("scene");
   const [compare, setCompare] = useState(false);
+  const [compareVersionId, setCompareVersionId] = useState("");
   const [scenePaneOpen, setScenePaneOpen] = useState(true);
   const [showScenes, setShowScenes] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [reordering, setReordering] = useState(false);
+  const [dragSceneId, setDragSceneId] = useState<string | undefined>();
+  const [dropIndex, setDropIndex] = useState<number | undefined>();
   const [selection, setSelection] = useState<SelectionInfo | undefined>();
   const [composerOpen, setComposerOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [activeNoteId, setActiveNoteId] = useState<string | undefined>();
   const sceneRefs = useRef<Record<string, HTMLElement | null>>({});
 
-  const scene = project.scenes.find((candidate) => candidate.sceneId === selectedSceneId) ?? project.scenes[0];
+  const sortedScenes = [...project.scenes].sort((a, b) => a.order - b.order);
+  const scene = sortedScenes.find((candidate) => candidate.sceneId === selectedSceneId) ?? sortedScenes[0];
   const versions = data.versions.filter((version) => version.sceneId === scene?.sceneId).sort((a, b) => a.versionNumber - b.versionNumber);
   const current = versions.find((version) => version.versionId === scene?.currentVersionId) ?? versions.at(-1);
   const previous = versions.filter((version) => version.versionId !== current?.versionId).at(-1);
-  const notes = data.notes.filter((note) => note.sceneId === scene?.sceneId && note.versionId === current?.versionId);
+  const compareTarget = versions.find((version) => version.versionId === compareVersionId && version.versionId !== current?.versionId) ?? previous;
+  const notes = data.notes.filter((note) => note.sceneId === scene?.sceneId && note.versionId === current?.versionId && !note.resolved);
   const highlights = data.highlights.filter((highlight) => highlight.sceneId === scene?.sceneId && highlight.versionId === current?.versionId);
   const activeNote = data.notes.find((note) => note.noteId === activeNoteId);
 
@@ -116,27 +140,6 @@ export function ReviewMode({ data, project, setData }: ReviewModeProps) {
       rangeEnd: rangeStart + selectedText.length,
     });
     setSelectedSceneId(targetScene.sceneId);
-  };
-
-  const createHighlight = (color = "#f8dc73") => {
-    if (!selection) return;
-    setData({
-      ...data,
-      highlights: [
-        ...data.highlights,
-        {
-          highlightId: createId("highlight"),
-          sceneId: selection.sceneId,
-          versionId: selection.versionId,
-          selectedText: selection.text,
-          rangeStart: selection.rangeStart,
-          rangeEnd: selection.rangeEnd,
-          color,
-          hasNote: false,
-        },
-      ],
-    });
-    setSelection(undefined);
   };
 
   const openComposer = () => {
@@ -244,15 +247,70 @@ export function ReviewMode({ data, project, setData }: ReviewModeProps) {
     }
   };
 
-  const renderSceneButton = (item: Scene) => {
+  const reorderScenes = (fromSceneId: string, toIndex: number) => {
+    const ordered = [...sortedScenes];
+    const fromIndex = ordered.findIndex((item) => item.sceneId === fromSceneId);
+    if (fromIndex < 0) return;
+    const [moving] = ordered.splice(fromIndex, 1);
+    const adjustedIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+    ordered.splice(Math.max(0, Math.min(adjustedIndex, ordered.length)), 0, moving);
+    const updatedScenes = ordered.map((item, index) => ({ ...item, order: index + 1, updatedAt: nowIso() }));
+    setData({
+      ...data,
+      projects: data.projects.map((candidate) =>
+        candidate.projectId === project.projectId
+          ? { ...candidate, scenes: updatedScenes, updatedAt: nowIso() }
+          : candidate,
+      ),
+    });
+  };
+
+  const sceneLabel = project.writingMode === "freewrite" ? "Chapter" : "Scene";
+  const sceneLabelPlural = project.writingMode === "freewrite" ? "Chapters" : "Scenes";
+
+  const renderSceneButton = (item: Scene, index: number) => {
     const version = data.versions.find((candidate) => candidate.versionId === item.currentVersionId);
     const noteCount = data.notes.filter((note) => note.sceneId === item.sceneId && !note.resolved).length;
     return (
-      <button key={item.sceneId} className={scene && item.sceneId === scene.sceneId ? "selected" : ""} onClick={() => openScene(item.sceneId)}>
-        <span>{item.order}</span>
-        <strong>{item.heading}</strong>
-        <small>{item.status} · V{version?.versionNumber ?? 1} · {noteCount} notes</small>
-      </button>
+      <Fragment key={item.sceneId}>
+        {reordering && dropIndex === index && <div className="drop-line" />}
+        <button
+          className={`${scene && item.sceneId === scene.sceneId ? "selected" : ""} ${reordering ? "reorderable" : ""}`}
+          draggable={reordering}
+          onClick={() => openScene(item.sceneId)}
+          onDragStart={() => setDragSceneId(item.sceneId)}
+          onDragOver={(event) => {
+            if (!reordering) return;
+            event.preventDefault();
+            const rect = event.currentTarget.getBoundingClientRect();
+            setDropIndex(index + (event.clientY > rect.top + rect.height / 2 ? 1 : 0));
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            if (dragSceneId !== undefined && dropIndex !== undefined) reorderScenes(dragSceneId, dropIndex);
+            setDragSceneId(undefined);
+            setDropIndex(undefined);
+          }}
+          onDragEnd={() => {
+            setDragSceneId(undefined);
+            setDropIndex(undefined);
+          }}
+        >
+          {reordering && <span className="grab-handle" aria-hidden="true">::</span>}
+          <strong>
+            {project.writingMode === "script" ? (
+              <>
+                {item.heading}
+                <span className="scene-number">#{item.order}</span>
+              </>
+            ) : (
+              `Chapter ${item.order}: ${item.heading}`
+            )}
+          </strong>
+          <small>{item.status} · V{version?.versionNumber ?? 1} · {noteCount} notes</small>
+        </button>
+        {reordering && dropIndex === sortedScenes.length && index === sortedScenes.length - 1 && <div className="drop-line" />}
+      </Fragment>
     );
   };
 
@@ -263,22 +321,22 @@ export function ReviewMode({ data, project, setData }: ReviewModeProps) {
           {scenePaneOpen ? (
             <aside className="review-scene-pane">
               <header>
-                <strong>Scenes</strong>
+                <strong>{sceneLabelPlural}</strong>
                 <button onClick={() => setScenePaneOpen(false)}>Hide</button>
               </header>
-              <div className="scene-drawer-list">{project.scenes.map(renderSceneButton)}</div>
+              <div className={`scene-drawer-list ${reordering ? "is-reordering" : ""}`}>{sortedScenes.map(renderSceneButton)}</div>
             </aside>
           ) : (
-            <button className="open-scenes-rail" onClick={() => setScenePaneOpen(true)}>Scenes</button>
+            <button className="open-scenes-rail" onClick={() => setScenePaneOpen(true)}>{sceneLabelPlural}</button>
           )}
 
-          <div className={`review-stage ${reviewView === "scene" && compare && previous ? "comparing" : ""}`}>
+          <div className={`review-stage ${reviewView === "scene" && compare && compareTarget ? "comparing" : ""}`}>
             {reviewView === "scene" ? (
               <>
-                {compare && previous && (
+                {compare && compareTarget && (
                   <article className="script-page compare-page">
-                    <div className="script-page-meta">Previous · V{previous.versionNumber}</div>
-                    <pre>{previous.text}</pre>
+                    <div className="script-page-meta">Compare · V{compareTarget.versionNumber}</div>
+                    <pre>{compareTarget.text}</pre>
                   </article>
                 )}
 
@@ -313,7 +371,7 @@ export function ReviewMode({ data, project, setData }: ReviewModeProps) {
                         }}
                       >
                         <div className="review-page-toolbar review-actions-only">
-                          <span>Scene {item.order}</span>
+                          <span>{project.writingMode === "script" ? `${item.heading} #${item.order}` : `Chapter ${item.order}: ${item.heading}`}</span>
                         </div>
                         <pre
                           className="read-only-script"
@@ -334,7 +392,7 @@ export function ReviewMode({ data, project, setData }: ReviewModeProps) {
           <aside className="mode-tools review-tools" aria-label="Review tools">
             <header className="mode-tools-header">
               <span>Review Tools</span>
-              <strong>Scene {scene.order} of {project.scenes.length}</strong>
+              <strong>{sceneLabel} {scene.order} of {project.scenes.length}</strong>
             </header>
 
             <section className="tool-section">
@@ -348,20 +406,49 @@ export function ReviewMode({ data, project, setData }: ReviewModeProps) {
                 </button>
               </div>
               {reviewView === "scene" && (
-                <label className="compact-check">
-                  <input name="compare-versions" type="checkbox" checked={compare} onChange={(event) => setCompare(event.target.checked)} />
-                  Compare versions
-                </label>
+                <>
+                  <label className="compact-check">
+                    <input name="compare-versions" type="checkbox" checked={compare} onChange={(event) => setCompare(event.target.checked)} />
+                    Compare versions
+                  </label>
+                  {compare && versions.length > 1 && (
+                    <label>
+                      Version
+                      <select
+                        name="compare-version"
+                        value={compareTarget?.versionId ?? ""}
+                        onChange={(event) => setCompareVersionId(event.target.value)}
+                      >
+                        {versions
+                          .filter((version) => version.versionId !== current.versionId)
+                          .map((version) => (
+                            <option key={version.versionId} value={version.versionId}>
+                              Version {version.versionNumber}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  )}
+                </>
               )}
               <div className="tool-button-row">
-                <button onClick={() => setScenePaneOpen((open) => !open)}>{scenePaneOpen ? "Hide Scenes" : "Show Scenes"}</button>
-                <button className="mobile-scenes-button" onClick={() => setShowScenes(true)}>Open Scenes</button>
+                <button onClick={() => setScenePaneOpen((open) => !open)}>{scenePaneOpen ? `Hide ${sceneLabelPlural}` : `Show ${sceneLabelPlural}`}</button>
+                <button className="mobile-scenes-button" onClick={() => setShowScenes(true)}>Open {sceneLabelPlural}</button>
                 <button className={showNotes ? "active" : ""} onClick={() => setShowNotes((open) => !open)}>Notes</button>
               </div>
+              <button
+                className={reordering ? "active" : ""}
+                onClick={() => {
+                  setScenePaneOpen(true);
+                  setReordering((value) => !value);
+                }}
+              >
+                {reordering ? "Done Reordering" : `Reorder ${sceneLabelPlural}`}
+              </button>
             </section>
 
             <section className="tool-section">
-              <h3>Scene Decision</h3>
+              <h3>{sceneLabel} Decision</h3>
               <div className="tool-button-row">
                 <button className="approve-button" onClick={() => updateScene({ ...scene, status: "Approved", updatedAt: nowIso() })}>Approve</button>
                 <button className="rewrite-button" onClick={() => updateScene({ ...scene, status: "Needs Rewrite", updatedAt: nowIso() })}>Needs Rewrite</button>
@@ -369,12 +456,10 @@ export function ReviewMode({ data, project, setData }: ReviewModeProps) {
             </section>
 
             <section className="tool-section">
-              <h3>Annotation</h3>
+              <h3>Mark</h3>
               <p className="tool-hint">{selection ? selection.text : "Select text on the page to mark it."}</p>
               <div className="tool-button-row">
-                <button onClick={() => createHighlight()} disabled={!selection}>Highlight</button>
-                <button onClick={() => createHighlight("underline")} disabled={!selection}>Underline</button>
-                <button onClick={openComposer} disabled={!selection}>Note</button>
+                <button onClick={openComposer} disabled={!selection}>Mark Selection</button>
               </div>
             </section>
 
@@ -392,17 +477,31 @@ export function ReviewMode({ data, project, setData }: ReviewModeProps) {
                 </div>
               </section>
             )}
+
+            <section className="tool-section">
+              <h3>History</h3>
+              <div className="icon-button-row">
+                <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↶</button>
+                <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↷</button>
+              </div>
+            </section>
+
+            <footer className="tools-stats" aria-label="Project status">
+              <span><span className="saved-dot" /> Saved</span>
+              <span>{stats.words} words</span>
+              <span>{stats.pages} page{stats.pages === 1 ? "" : "s"}</span>
+            </footer>
           </aside>
 
           {composerOpen && (
             <div className="note-popover annotation-popover">
               <header>
-                <strong>Note</strong>
+                <strong>Mark</strong>
                 <button onClick={() => setComposerOpen(false)} aria-label="Close note composer">Close</button>
               </header>
               <p>{selection?.text}</p>
-              <textarea name="new-review-note" value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} placeholder="Add a note..." />
-              <button className="primary" onClick={saveNote}>Save Note</button>
+              <textarea name="new-review-note" value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} placeholder="Add a note for this mark..." />
+              <button className="primary" onClick={saveNote}>Save Mark</button>
             </div>
           )}
 
@@ -420,7 +519,6 @@ export function ReviewMode({ data, project, setData }: ReviewModeProps) {
                 placeholder="Highlight only"
               />
               <div className="note-actions">
-                <button onClick={() => updateNote(activeNote.noteId, { resolved: true })}>Resolve</button>
                 <button onClick={() => deleteNote(activeNote.noteId)}>Delete</button>
               </div>
             </div>
@@ -430,10 +528,10 @@ export function ReviewMode({ data, project, setData }: ReviewModeProps) {
             <div className="drawer-scrim" onClick={() => setShowScenes(false)}>
               <aside className="drawer left-drawer" onClick={(event) => event.stopPropagation()}>
                 <header>
-                  <strong>Scenes</strong>
+                  <strong>{sceneLabelPlural}</strong>
                   <button onClick={() => setShowScenes(false)}>Close</button>
                 </header>
-                <div className="scene-drawer-list">{project.scenes.map(renderSceneButton)}</div>
+                <div className={`scene-drawer-list ${reordering ? "is-reordering" : ""}`}>{sortedScenes.map(renderSceneButton)}</div>
               </aside>
             </div>
           )}

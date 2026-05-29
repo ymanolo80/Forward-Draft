@@ -92,6 +92,7 @@ p {
 }
 
 .topbar-project,
+.topbar-center,
 .topbar-right,
 .topbar-menus,
 .save-meta,
@@ -110,16 +111,26 @@ p {
   min-width: 0;
 }
 
-.topbar-project strong {
+.topbar-project {
+  justify-content: flex-start;
+}
+
+.topbar-center {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+}
+
+.topbar-center strong {
   font-size: 13px;
   white-space: nowrap;
 }
 
 .project-picker {
-  min-width: 180px;
+  min-width: 210px;
   max-width: 280px;
-  border-color: transparent;
-  background: transparent;
+  border-color: var(--line);
+  background: var(--page);
   font-weight: 600;
 }
 
@@ -465,6 +476,35 @@ p {
   font-weight: 700;
 }
 
+.icon-button-row {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-button-row button {
+  flex: 0 0 44px;
+  width: 44px;
+  min-height: 38px;
+  padding: 0;
+  font-size: 18px;
+}
+
+.tools-stats {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--soft-line);
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tools-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
 .quiet-controls {
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -528,6 +568,12 @@ p {
 .script-line.character,
 .script-line.transition {
   text-transform: uppercase;
+}
+
+.script-line.chapter-heading {
+  margin-top: 18px;
+  font-weight: 700;
+  text-align: center;
 }
 
 .script-line.character,
@@ -862,10 +908,29 @@ mark {
   background: var(--highlight);
   padding: 1px 2px;
   border-radius: 3px;
+  position: relative;
 }
 
 .script-highlight.has-note {
   box-shadow: inset 0 -2px 0 rgba(130, 91, 18, 0.2);
+}
+
+.note-pin {
+  position: absolute;
+  right: -9px;
+  top: -12px;
+  width: 17px;
+  height: 17px;
+  min-height: 17px;
+  padding: 0;
+  border-radius: 50%;
+  border-color: #9bb6be;
+  background: var(--page);
+  color: #315f9c;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .script-underline {
@@ -878,8 +943,8 @@ mark {
 .note,
 .note-popover,
 .note-drawer-card {
-  border-left: 4px solid #96a1ad;
-  background: var(--note);
+  border-left: 4px solid #9bb6be;
+  background: var(--page);
 }
 
 .note-popover {
@@ -891,6 +956,7 @@ mark {
   border: 1px solid var(--line);
   border-left-width: 4px;
   border-radius: 8px;
+  background: var(--page);
   box-shadow: var(--shadow);
   z-index: 32;
   display: grid;
@@ -986,10 +1052,14 @@ mark {
   min-height: auto;
   padding: 10px;
   display: grid;
-  grid-template-columns: 28px 1fr;
+  grid-template-columns: 1fr;
   gap: 4px 9px;
   text-align: left;
   background: transparent;
+}
+
+.scene-drawer-list button.reorderable {
+  grid-template-columns: 24px 1fr;
 }
 
 .scene-drawer-list button.selected {
@@ -998,16 +1068,46 @@ mark {
 }
 
 .scene-drawer-list button strong {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 13px;
 }
 
 .scene-drawer-list button small,
 .note-drawer-card span,
 .subtle-empty {
-  grid-column: 2;
+  grid-column: 1;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.4;
+}
+
+.scene-drawer-list button.reorderable small {
+  grid-column: 2;
+}
+
+.grab-handle {
+  grid-row: 1 / span 2;
+  color: #87919d;
+  cursor: grab;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.scene-number {
+  color: #68717d;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.drop-line {
+  height: 3px;
+  border-radius: 999px;
+  background: #315f9c;
+  box-shadow: 0 0 0 3px rgba(49, 95, 156, 0.12);
 }
 
 .note-drawer-card {
@@ -1128,13 +1228,13 @@ mark {
 }
 
 .previous-context {
-  border-color: #b8d1c8;
-  background: #edf7f3;
+  border-color: var(--soft-line);
+  background: var(--panel);
 }
 
 .next-context {
-  border-color: #d8c37d;
-  background: #fff6d4;
+  border-color: var(--soft-line);
+  background: var(--panel);
 }
 
 .rewrite-source aside {
@@ -1295,7 +1395,7 @@ mark {
     min-width: 0;
   }
 
-  .topbar-project strong {
+  .topbar-center strong {
     display: none;
   }
 

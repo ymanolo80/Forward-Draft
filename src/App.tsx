@@ -28,6 +28,7 @@ export function App() {
   const [mode, setMode] = useState<AppMode>("write");
   const [loaded, setLoaded] = useState(false);
   const [undoStack, setUndoStack] = useState<AppData[]>([]);
+  const [redoStack, setRedoStack] = useState<AppData[]>([]);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [visibility, setVisibility] = useState<VisibilityRule>("last3");
   const [fadeTiming, setFadeTiming] = useState<FadeTiming>("3s");
@@ -53,12 +54,15 @@ export function App() {
 
   useEffect(() => {
     if (!activeProject) return;
-    if (activeProject.writingMode === "script" && visibility === "previousBlock") setVisibility("previousScene");
+    if (activeProject.writingMode === "script" && (visibility === "previousBlock" || visibility === "previousChapter")) {
+      setVisibility("previousScene");
+    }
     if (activeProject.writingMode === "freewrite" && visibility === "previousScene") setVisibility("previousBlock");
   }, [activeProject, visibility]);
 
   const setData = useCallback((next: AppData) => {
     setUndoStack((history) => [...history, data].slice(-50));
+    setRedoStack([]);
     setDataState(next);
     saveData(next).catch((error) => console.error("Autosave failed", error));
   }, [data]);
@@ -67,14 +71,24 @@ export function App() {
     const previous = undoStack.at(-1);
     if (!previous) return;
     setUndoStack((history) => history.slice(0, -1));
+    setRedoStack((history) => [...history, data].slice(-50));
     setDataState(previous);
     saveData(previous).catch((error) => console.error("Autosave failed", error));
-  }, [undoStack]);
+  }, [data, undoStack]);
+
+  const redoLast = useCallback(() => {
+    const next = redoStack.at(-1);
+    if (!next) return;
+    setRedoStack((history) => history.slice(0, -1));
+    setUndoStack((history) => [...history, data].slice(-50));
+    setDataState(next);
+    saveData(next).catch((error) => console.error("Autosave failed", error));
+  }, [data, redoStack]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
-      if ((!event.metaKey && !event.ctrlKey) || (key !== "z" && key !== "x")) return;
+      if (!event.metaKey && !event.ctrlKey) return;
       const target = event.target as HTMLElement | null;
       const isEditable =
         target instanceof HTMLInputElement ||
@@ -82,21 +96,23 @@ export function App() {
         target instanceof HTMLSelectElement ||
         target?.isContentEditable;
       if (isEditable) return;
+      if (key !== "z" && key !== "y") return;
       event.preventDefault();
-      undoLast();
+      if (key === "y" || event.shiftKey) redoLast();
+      else undoLast();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [undoLast]);
+  }, [redoLast, undoLast]);
 
   useEffect(() => {
     if (!optionsOpen) return;
-    const onPointerMove = (event: PointerEvent) => {
+    const onPointerDown = (event: PointerEvent) => {
       const menu = optionsRef.current;
       if (menu && event.target instanceof Node && !menu.contains(event.target)) setOptionsOpen(false);
     };
-    window.addEventListener("pointermove", onPointerMove);
-    return () => window.removeEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
   }, [optionsOpen]);
 
   if (!loaded) return <div className="loading">Opening Forward Draft...</div>;
@@ -106,17 +122,23 @@ export function App() {
   const pages = Math.max(1, Math.ceil(words / 250));
 
   const createNew = (writingMode: WritingMode = "script") => {
-    const created = createProject("New Forward Draft");
-    const projects = created.projects.map((project) => ({ ...project, writingMode }));
+    const createdAt = nowIso();
+    const projectId = createId("project");
+    const project: Project = {
+      projectId,
+      title: writingMode === "script" ? "New Script Project" : "New Freewriting Project",
+      writingMode,
+      createdAt,
+      updatedAt: createdAt,
+      drafts: [],
+      scenes: [],
+    };
     setData({
       ...data,
-      projects: [...data.projects, ...projects],
-      versions: [...data.versions, ...created.versions],
-      notes: [...data.notes, ...created.notes],
-      highlights: [...data.highlights, ...created.highlights],
-      tasks: [...data.tasks, ...created.tasks],
-      activeProjectId: created.activeProjectId,
+      projects: [...data.projects, project],
+      activeProjectId: projectId,
     });
+    setMode("write");
   };
 
   const rename = () => {
@@ -233,7 +255,6 @@ export function App() {
     <div className={`app mode-${mode}`}>
       <header className="global-topbar">
         <div className="topbar-project">
-          <strong>Forward Draft</strong>
           <select
             className="project-picker"
             aria-label="Project name"
@@ -249,17 +270,20 @@ export function App() {
           </select>
         </div>
 
-        <nav className="mode-tabs" aria-label="Workflow modes">
-          <button className={mode === "write" ? "active" : ""} onClick={() => setMode("write")}>
-            Write
-          </button>
-          <button className={mode === "review" ? "active" : ""} onClick={() => setMode("review")}>
-            Review
-          </button>
-          <button className={mode === "rewrite" ? "active" : ""} onClick={() => setMode("rewrite")}>
-            Rewrite
-          </button>
-        </nav>
+        <div className="topbar-center">
+          <strong>Forward Draft</strong>
+          <nav className="mode-tabs" aria-label="Workflow modes">
+            <button className={mode === "write" ? "active" : ""} onClick={() => setMode("write")}>
+              Write
+            </button>
+            <button className={mode === "review" ? "active" : ""} onClick={() => setMode("review")}>
+              Review
+            </button>
+            <button className={mode === "rewrite" ? "active" : ""} onClick={() => setMode("rewrite")}>
+              Rewrite
+            </button>
+          </nav>
+        </div>
 
         <div className="topbar-right">
           <div className="topbar-menus" aria-label="Project actions">
@@ -267,7 +291,6 @@ export function App() {
               ref={optionsRef}
               className="menu options-menu"
               open={optionsOpen}
-              onMouseLeave={() => setOptionsOpen(false)}
               onToggle={(event) => setOptionsOpen(event.currentTarget.open)}
             >
               <summary>Options</summary>
@@ -347,16 +370,6 @@ export function App() {
 
               </div>
             </details>
-            <button className="undo-button" onClick={undoLast} disabled={undoStack.length === 0} title="Undo last change">
-              Undo
-            </button>
-          </div>
-
-          <div className="save-meta" aria-label="Project status">
-            <span className="saved-dot" />
-            <span>Saved</span>
-            <span>{words} words</span>
-            <span>{pages} page{pages === 1 ? "" : "s"}</span>
           </div>
         </div>
       </header>
@@ -373,10 +386,37 @@ export function App() {
                 fadeTiming={fadeTiming}
                 setVisibility={setVisibility}
                 setFadeTiming={setFadeTiming}
+                stats={{ words, pages }}
+                onUndo={undoLast}
+                onRedo={redoLast}
+                canUndo={undoStack.length > 0}
+                canRedo={redoStack.length > 0}
               />
             )}
-            {mode === "review" && <ReviewMode data={data} project={activeProject} setData={setData} />}
-            {mode === "rewrite" && <RewriteMode data={data} project={activeProject} setData={setData} />}
+            {mode === "review" && (
+              <ReviewMode
+                data={data}
+                project={activeProject}
+                setData={setData}
+                stats={{ words, pages }}
+                onUndo={undoLast}
+                onRedo={redoLast}
+                canUndo={undoStack.length > 0}
+                canRedo={redoStack.length > 0}
+              />
+            )}
+            {mode === "rewrite" && (
+              <RewriteMode
+                data={data}
+                project={activeProject}
+                setData={setData}
+                stats={{ words, pages }}
+                onUndo={undoLast}
+                onRedo={redoLast}
+                canUndo={undoStack.length > 0}
+                canRedo={redoStack.length > 0}
+              />
+            )}
           </>
         ) : (
           <div className="empty-state">Create a project to begin.</div>

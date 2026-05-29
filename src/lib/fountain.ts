@@ -19,6 +19,7 @@ export function cycleElement(current: ScriptElement) {
 
 export function inferNextElement(current: ScriptElement, text: string): ScriptElement {
   if (current === "Scene Heading") return "Action";
+  if (current === "Chapter Heading") return "General Text";
   if (current === "Character") return "Dialogue";
   if (current === "Dialogue" && text.trim().length === 0) return "Action";
   if (current === "Parenthetical") return "Dialogue";
@@ -38,6 +39,7 @@ export function blockToFountain(block: DraftBlock) {
   if (block.element === "Character") return text.toUpperCase();
   if (block.element === "Transition") return `> ${text.toUpperCase()}`;
   if (block.element === "Shot") return `## ${text}`;
+  if (block.element === "Chapter Heading") return text;
   if (block.element === "Note") return text.startsWith("[[") ? text : `[[${text}]]`;
   if (block.element === "Parenthetical") return text.startsWith("(") ? text : `(${text})`;
   return text;
@@ -54,11 +56,12 @@ export function exportFountain(project: Project, scenes: Scene[], versions: Scen
     .join("\n\n");
 }
 
-export function draftBlocksToScenes(projectId: string, blocks: DraftBlock[]) {
+export function draftBlocksToScenes(projectId: string, blocks: DraftBlock[], sectionLabel: "scene" | "chapter" = "scene") {
   const scenes: Scene[] = [];
   const versions: SceneVersion[] = [];
   let current: DraftBlock[] = [];
-  let heading = "UNTITLED SCENE";
+  let heading = sectionLabel === "chapter" ? "Untitled Chapter" : "UNTITLED SCENE";
+  const headingElement = sectionLabel === "chapter" ? "Chapter Heading" : "Scene Heading";
 
   const flush = () => {
     if (!current.length) return;
@@ -87,11 +90,13 @@ export function draftBlocksToScenes(projectId: string, blocks: DraftBlock[]) {
   };
 
   for (const block of blocks) {
-    if (block.element === "Scene Heading" && current.length) {
+    if (block.element === headingElement && current.length) {
       flush();
       current = [];
     }
-    if (block.element === "Scene Heading" && block.text.trim()) heading = block.text.trim().toUpperCase();
+    if (block.element === headingElement && block.text.trim()) {
+      heading = sectionLabel === "chapter" ? block.text.trim() : block.text.trim().toUpperCase();
+    }
     current.push(block);
   }
   flush();

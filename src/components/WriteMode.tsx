@@ -11,7 +11,14 @@ interface WriteModeProps {
   fadeTiming: FadeTiming;
   setVisibility: (next: VisibilityRule) => void;
   setFadeTiming: (next: FadeTiming) => void;
+  stats: { words: number; pages: number };
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
+
+type InsertPlacement = "append" | "before" | "after";
 
 function visibleCount(rule: VisibilityRule) {
   if (rule === "last2") return 2;
@@ -46,6 +53,7 @@ const visibilityOptions: { value: VisibilityRule; label: string }[] = [
   { value: "last5", label: "Last 5 lines" },
   { value: "previousBlock", label: "Previous paragraph" },
   { value: "previousScene", label: "Previous scene" },
+  { value: "previousChapter", label: "Previous chapter" },
 ];
 
 const fadeOptions: { value: FadeTiming; label: string }[] = [
@@ -109,11 +117,26 @@ function elementSuggestions(element: ScriptElement, text: string, project: Proje
   return [];
 }
 
-export function WriteMode({ data, project, setData, visibility, fadeTiming, setVisibility, setFadeTiming }: WriteModeProps) {
+export function WriteMode({
+  data,
+  project,
+  setData,
+  visibility,
+  fadeTiming,
+  setVisibility,
+  setFadeTiming,
+  stats,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+}: WriteModeProps) {
   const [element, setElement] = useState<ScriptElement>("Action");
   const [activeText, setActiveText] = useState("");
   const [activeStartedAt, setActiveStartedAt] = useState(Date.now());
   const [clock, setClock] = useState(Date.now());
+  const [sectionPlacement, setSectionPlacement] = useState<InsertPlacement>("append");
+  const [placementSceneId, setPlacementSceneId] = useState(project.scenes[0]?.sceneId ?? "");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -128,6 +151,25 @@ export function WriteMode({ data, project, setData, visibility, fadeTiming, setV
     input.style.height = `${Math.max(input.scrollHeight, 28)}px`;
   }, [activeText, element]);
 
+  useEffect(() => {
+    if (project.writingMode === "freewrite" && element !== "Chapter Heading" && element !== "General Text") {
+      setElement("General Text");
+    }
+    if (project.writingMode === "script" && element === "Chapter Heading") setElement("Action");
+  }, [element, project.writingMode]);
+
+  useEffect(() => {
+    const targets = project.scenes.filter((scene) => scene.source !== "draft").sort((a, b) => a.order - b.order);
+    if (targets.length === 0) {
+      setPlacementSceneId("");
+      setSectionPlacement("append");
+      return;
+    }
+    if (!placementSceneId || !targets.some((scene) => scene.sceneId === placementSceneId)) {
+      setPlacementSceneId(targets[0].sceneId);
+    }
+  }, [placementSceneId, project.scenes]);
+
   const updateProject = (next: Project, nextVersions = data.versions) => {
     setData({
       ...data,
@@ -137,25 +179,76 @@ export function WriteMode({ data, project, setData, visibility, fadeTiming, setV
   };
 
   const applyDraft = (draft: DraftBlock[]) => {
-    const parsed = draftBlocksToScenes(project.projectId, draft);
-    const previousSceneIds = new Set(project.scenes.map((scene) => scene.sceneId));
-    const preservedVersions = data.versions.filter((version) => previousSceneIds.has(version.sceneId) === false);
+    const sectionLabel = project.writingMode === "freewrite" ? "chapter" : "scene";
+    const parsed = draftBlocksToScenes(project.projectId, draft, sectionLabel);
+    const existingDraftScenes = project.scenes
+      .filter((scene) => scene.source === "draft")
+      .sort((a, b) => a.order - b.order);
+    const baseScenes = project.scenes
+      .filter((scene) => scene.source !== "draft")
+      .sort((a, b) => a.order - b.order);
+    const draftSceneIds = new Set(existingDraftScenes.map((scene) => scene.sceneId));
+    const nextDraftVersions = parsed.scenes.map((scene, index) => {
+      const existing = existingDraftScenes[index];
+      const parsedVersion = parsed.versions[index];
+      const existingVersion = existing
+        ? data.versions.find((version) => version.versionId === existing.currentVersionId)
+        : undefined;
+      const sceneId = existing?.sceneId ?? scene.sceneId;
+      const versionId = existingVersion?.versionId ?? parsedVersion.versionId;
+      return {
+        scene: {
+          ...scene,
+          sceneId,
+          projectId: project.projectId,
+          currentVersionId: versionId,
+          status: existing?.status ?? scene.status,
+          createdAt: existing?.createdAt ?? scene.createdAt,
+          source: "draft" as const,
+        },
+        version: {
+          ...parsedVersion,
+          sceneId,
+          versionId,
+          versionNumber: existingVersion?.versionNumber ?? parsedVersion.versionNumber,
+          createdAt: existingVersion?.createdAt ?? parsedVersion.createdAt,
+          isCurrent: true,
+        },
+      };
+    });
+    let insertIndex = baseScenes.length;
+    if (sectionPlacement !== "append" && placementSceneId) {
+      const targetIndex = baseScenes.findIndex((scene) => scene.sceneId === placementSceneId);
+      if (targetIndex >= 0) insertIndex = sectionPlacement === "before" ? targetIndex : targetIndex + 1;
+    }
+    const scenes = [
+      ...baseScenes.slice(0, insertIndex),
+      ...nextDraftVersions.map((item) => item.scene),
+      ...baseScenes.slice(insertIndex),
+    ].map((scene, index) => ({ ...scene, order: index + 1 }));
+    const preservedVersions = data.versions.filter((version) => !draftSceneIds.has(version.sceneId));
     updateProject(
       {
         ...project,
         drafts: draft,
-        scenes: parsed.scenes,
+        scenes,
         updatedAt: nowIso(),
       },
-      [...preservedVersions, ...parsed.versions],
+      [...preservedVersions, ...nextDraftVersions.map((item) => item.version)],
     );
   };
 
   const commitBlock = (text = activeText, nextElement?: ScriptElement) => {
     if (!text.trim()) return;
+    const blockElement =
+      project.writingMode === "freewrite"
+        ? element === "Chapter Heading"
+          ? "Chapter Heading"
+          : "General Text"
+        : element;
     const block: DraftBlock = {
       blockId: createId("block"),
-      element: project.writingMode === "freewrite" ? "General Text" : element,
+      element: blockElement,
       text,
       createdAt: nowIso(),
     };
@@ -195,7 +288,12 @@ export function WriteMode({ data, project, setData, visibility, fadeTiming, setV
     }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      commitBlock(activeText, project.writingMode === "script" ? inferNextElement(element, activeText) : undefined);
+      commitBlock(
+        activeText,
+        project.writingMode === "script" || element === "Chapter Heading"
+          ? inferNextElement(element, activeText)
+          : undefined,
+      );
       return;
     }
     if (event.key === "Backspace") {
@@ -209,17 +307,24 @@ export function WriteMode({ data, project, setData, visibility, fadeTiming, setV
       const lastSceneIndex = project.drafts.findLastIndex((block) => block.element === "Scene Heading");
       return project.drafts.slice(Math.max(lastSceneIndex, 0));
     }
+    if (visibility === "previousChapter" && project.writingMode === "freewrite") {
+      const lastChapterIndex = project.drafts.findLastIndex((block) => block.element === "Chapter Heading");
+      return project.drafts.slice(Math.max(lastChapterIndex, 0));
+    }
     return project.drafts.slice(-visibleCount(visibility));
   }, [project.drafts, project.writingMode, visibility]);
 
   const shouldFade = fadeTiming !== "nextBlock" && clock - activeStartedAt >= fadeDelay(fadeTiming);
   const draftWords = countWords(project.drafts.map((block) => block.text).join(" "));
-  const liveElement = project.writingMode === "script" ? element : "General Text";
+  const liveElement = project.writingMode === "script" ? element : element === "Chapter Heading" ? "Chapter Heading" : "General Text";
   const suggestions = project.writingMode === "script" ? elementSuggestions(element, activeText, project) : [];
   const writeVisibilityOptions = visibilityOptions.filter((option) => {
-    if (project.writingMode === "script") return option.value !== "previousBlock";
+    if (project.writingMode === "script") return option.value !== "previousBlock" && option.value !== "previousChapter";
     return option.value !== "previousScene";
   });
+  const sectionName = project.writingMode === "script" ? "scene" : "chapter";
+  const sortedScenes = [...project.scenes].sort((a, b) => a.order - b.order);
+  const placementTargets = sortedScenes.filter((scene) => scene.source !== "draft");
 
   return (
     <section className="mode-panel write-panel">
@@ -253,7 +358,7 @@ export function WriteMode({ data, project, setData, visibility, fadeTiming, setV
                   value={activeText}
                   onChange={(event) => setActiveText(normalizeInput(event.target.value))}
                   onKeyDown={onKeyDown}
-                  placeholder={project.writingMode === "script" ? element : "Start typing"}
+                  placeholder={project.writingMode === "script" ? element : element === "Chapter Heading" ? "Chapter title" : "Start typing"}
                   spellCheck
                   rows={1}
                   aria-label="Script page editor"
@@ -286,6 +391,40 @@ export function WriteMode({ data, project, setData, visibility, fadeTiming, setV
           </header>
 
           <section className="tool-section">
+            <h3>{project.writingMode === "script" ? "New Scene Placement" : "New Chapter Placement"}</h3>
+            <label>
+              Write as
+              <select
+                name="section-placement"
+                value={sectionPlacement}
+                onChange={(event) => setSectionPlacement(event.target.value as InsertPlacement)}
+              >
+                <option value="append">Next {sectionName}</option>
+                <option value="before">Before existing {sectionName}</option>
+                <option value="after">After existing {sectionName}</option>
+              </select>
+            </label>
+            {sectionPlacement !== "append" && placementTargets.length > 0 && (
+              <label>
+                Existing {sectionName}
+                <select
+                  name="section-placement-target"
+                  value={placementSceneId}
+                  onChange={(event) => setPlacementSceneId(event.target.value)}
+                >
+                  {placementTargets.map((scene) => (
+                    <option key={scene.sceneId} value={scene.sceneId}>
+                      {project.writingMode === "script"
+                        ? `${scene.heading} #${scene.order}`
+                        : `Chapter ${scene.order}: ${scene.heading}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </section>
+
+          <section className="tool-section">
             <h3>Text Window</h3>
             <label>
               Visible text
@@ -309,7 +448,7 @@ export function WriteMode({ data, project, setData, visibility, fadeTiming, setV
             </label>
           </section>
 
-          {project.writingMode === "script" && (
+          {project.writingMode === "script" ? (
             <section className="tool-section">
               <h3>Script Element</h3>
               <div className="element-grid" role="toolbar" aria-label="Screenplay element toolbar">
@@ -328,6 +467,30 @@ export function WriteMode({ data, project, setData, visibility, fadeTiming, setV
                 ))}
               </div>
             </section>
+          ) : (
+            <section className="tool-section">
+              <h3>Freewrite Unit</h3>
+              <div className="segmented">
+                <button
+                  className={element !== "Chapter Heading" ? "active" : ""}
+                  onClick={() => {
+                    setElement("General Text");
+                    inputRef.current?.focus();
+                  }}
+                >
+                  Paragraph
+                </button>
+                <button
+                  className={element === "Chapter Heading" ? "active" : ""}
+                  onClick={() => {
+                    setElement("Chapter Heading");
+                    inputRef.current?.focus();
+                  }}
+                >
+                  Chapter
+                </button>
+              </div>
+            </section>
           )}
 
           <section className="tool-section">
@@ -336,6 +499,20 @@ export function WriteMode({ data, project, setData, visibility, fadeTiming, setV
               Undo Last Line
             </button>
           </section>
+
+          <section className="tool-section">
+            <h3>History</h3>
+            <div className="icon-button-row">
+              <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↶</button>
+              <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↷</button>
+            </div>
+          </section>
+
+          <footer className="tools-stats" aria-label="Project status">
+            <span><span className="saved-dot" /> Saved</span>
+            <span>{stats.words} words</span>
+            <span>{stats.pages} page{stats.pages === 1 ? "" : "s"}</span>
+          </footer>
         </aside>
       </div>
     </section>
