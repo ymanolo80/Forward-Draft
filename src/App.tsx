@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { ReviewMode } from "./components/ReviewMode";
 import { RewriteMode } from "./components/RewriteMode";
 import { WriteMode } from "./components/WriteMode";
-import { exportChangesPdf, exportFountainFile, exportFullPdf, exportProjectBackup, exportText } from "./lib/exports";
+import { exportChangesPdf, exportFountainFile, exportFullPdf, exportProjectFile, exportText } from "./lib/exports";
+import { importFountainProject } from "./lib/fountain";
 import { createId, nowIso } from "./lib/ids";
+import { appendProjectFileDocument, parseProjectFileText, projectTitleFromFileName } from "./lib/projectFile";
 import { createProject } from "./lib/seed";
 import { emptyData, loadData, saveData } from "./lib/storage";
-import type { AppData, AppMode, FadeTiming, FontFamilyChoice, FontSettings, Project, VisibilityRule, WritingMode } from "./types";
+import type { AppData, AppMode, CoverPage, FadeTiming, FontFamilyChoice, FontSettings, Project, VisibilityRule, WritingMode } from "./types";
 
 const fontFamilyMap: Record<FontFamilyChoice, string> = {
   screenplay: '"Courier Prime", "Courier New", Courier, monospace',
@@ -29,6 +31,25 @@ function wordCount(text: string) {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function defaultCoverPage(project: Project): CoverPage {
+  return {
+    title: project.coverPage?.title || project.title,
+    writtenBy: project.coverPage?.writtenBy ?? "",
+    contact: project.coverPage?.contact ?? "",
+    date: project.coverPage?.date || project.createdAt.slice(0, 10),
+  };
+}
+
+function uniqueProjectTitle(title: string, data: AppData) {
+  const existing = new Set(data.projects.map((project) => project.title));
+  if (!existing.has(title)) return title;
+  const copyTitle = `${title} Copy`;
+  if (!existing.has(copyTitle)) return copyTitle;
+  let index = 2;
+  while (existing.has(`${copyTitle} ${index}`)) index += 1;
+  return `${copyTitle} ${index}`;
+}
+
 export function App() {
   const [data, setDataState] = useState<AppData>(emptyData);
   const [mode, setMode] = useState<AppMode>("write");
@@ -36,6 +57,8 @@ export function App() {
   const [undoStack, setUndoStack] = useState<AppData[]>([]);
   const [redoStack, setRedoStack] = useState<AppData[]>([]);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [coverOpen, setCoverOpen] = useState(false);
+  const [coverDraft, setCoverDraft] = useState<CoverPage | undefined>();
   const [visibility, setVisibility] = useState<VisibilityRule>("last3");
   const [fadeTiming, setFadeTiming] = useState<FadeTiming>("3s");
   const [fontSettings, setFontSettings] = useState<FontSettings>({
@@ -146,6 +169,12 @@ export function App() {
       writingMode,
       createdAt,
       updatedAt: createdAt,
+      coverPage: {
+        title: writingMode === "script" ? "New Script Project" : "New Freewriting Project",
+        writtenBy: "",
+        contact: "",
+        date: createdAt.slice(0, 10),
+      },
       drafts: [],
       scenes: [],
     };
@@ -167,6 +196,25 @@ export function App() {
         project.projectId === activeProject.projectId ? { ...project, title, updatedAt: nowIso() } : project,
       ),
     });
+  };
+
+  const openCoverPage = () => {
+    if (!activeProject) return;
+    setCoverDraft(defaultCoverPage(activeProject));
+    setCoverOpen(true);
+    setOptionsOpen(false);
+  };
+
+  const saveCoverPage = () => {
+    if (!activeProject || !coverDraft) return;
+    const updatedAt = nowIso();
+    setData({
+      ...data,
+      projects: data.projects.map((project) =>
+        project.projectId === activeProject.projectId ? { ...project, coverPage: coverDraft, updatedAt } : project,
+      ),
+    });
+    setCoverOpen(false);
   };
 
   const duplicate = () => {
@@ -254,17 +302,46 @@ export function App() {
     });
   };
 
-  const importBackup = async (file?: File) => {
+  const openProjectFile = async (file?: File) => {
     if (!file) return;
-    const backup = JSON.parse(await file.text());
-    setData({
-      projects: [...data.projects, backup.project],
-      versions: [...data.versions, ...backup.versions],
-      notes: [...data.notes, ...backup.notes],
-      highlights: [...data.highlights, ...backup.highlights],
-      tasks: [...data.tasks, ...backup.tasks],
-      activeProjectId: backup.project.projectId,
-    });
+    try {
+      const projectFile = parseProjectFileText(await file.text());
+      const result = appendProjectFileDocument(data, projectFile, { preferredTitle: projectTitleFromFileName(file.name) });
+      setData(result.data);
+      setMode("write");
+      if (result.importedAsCopy) {
+        alert(`Opened "${projectFile.project.title}" as "${result.title}" because that project already exists here.`);
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "This project file could not be opened.");
+    }
+  };
+
+  const importFountainFile = async (file?: File) => {
+    if (!file) return;
+    try {
+      const imported = importFountainProject(file.name, await file.text());
+      const title = uniqueProjectTitle(imported.project.title, data);
+      const project: Project = {
+        ...imported.project,
+        title,
+        coverPage: {
+          title: imported.project.coverPage?.title || title,
+          writtenBy: imported.project.coverPage?.writtenBy ?? "",
+          contact: imported.project.coverPage?.contact ?? "",
+          date: imported.project.coverPage?.date ?? imported.project.createdAt.slice(0, 10),
+        },
+      };
+      setData({
+        ...data,
+        projects: [...data.projects, project],
+        versions: [...data.versions, ...imported.versions],
+        activeProjectId: project.projectId,
+      });
+      setMode("review");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "This Fountain file could not be imported.");
+    }
   };
 
   return (
@@ -320,15 +397,10 @@ export function App() {
                       ))}
                     </select>
                   </label>
+                  <button onClick={openCoverPage} disabled={!activeProject}>Cover Page</button>
                   <button onClick={() => { rename(); setOptionsOpen(false); }} disabled={!activeProject}>Rename Project</button>
                   <button onClick={() => { duplicate(); setOptionsOpen(false); }} disabled={!activeProject}>Duplicate Project</button>
                   <button onClick={() => { deleteActive(); setOptionsOpen(false); }} disabled={!activeProject}>Delete Project</button>
-                  <button
-                    onClick={() => { activeProject && exportProjectBackup(activeProject, data); setOptionsOpen(false); }}
-                    disabled={!activeProject}
-                  >
-                    Backup Project
-                  </button>
                 </section>
 
                 <section className="menu-section">
@@ -336,38 +408,58 @@ export function App() {
                   <button onClick={() => { createNew("script"); setOptionsOpen(false); }}>New Script Project</button>
                   <button onClick={() => { createNew("freewrite"); setOptionsOpen(false); }}>New Freewriting Project</button>
                   <label className="menu-file">
-                    Import Project
+                    Open Project File
                     <input
                       name="import-project"
                       type="file"
-                      accept=".json"
+                      accept=".frdx"
                       onChange={(event) => {
-                        importBackup(event.target.files?.[0]);
+                        openProjectFile(event.target.files?.[0]);
+                        event.currentTarget.value = "";
                         setOptionsOpen(false);
                       }}
                     />
                   </label>
+                  <label className="menu-file">
+                    Import Fountain Script
+                    <input
+                      name="import-fountain"
+                      type="file"
+                      accept=".fountain,text/plain"
+                      onChange={(event) => {
+                        importFountainFile(event.target.files?.[0]);
+                        event.currentTarget.value = "";
+                        setOptionsOpen(false);
+                      }}
+                    />
+                  </label>
+                  <button
+                    onClick={async () => {
+                      if (activeProject) await exportProjectFile(activeProject, data);
+                      setOptionsOpen(false);
+                    }}
+                    disabled={!activeProject}
+                  >
+                    Save Project File
+                  </button>
                 </section>
 
                 <section className="menu-section">
                   <strong>Export</strong>
-                  <button onClick={() => { activeProject && exportFountainFile(activeProject, data.versions); setOptionsOpen(false); }} disabled={!activeProject}>
+                  <button onClick={() => { activeProject && exportFountainFile(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
                     Export Fountain
                   </button>
-                  <button onClick={() => { activeProject && exportText(activeProject, data.versions); setOptionsOpen(false); }} disabled={!activeProject}>
+                  <button onClick={() => { activeProject && exportText(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
                     Export TXT
                   </button>
-                  <button onClick={() => { activeProject && exportFullPdf(activeProject, data.versions); setOptionsOpen(false); }} disabled={!activeProject}>
+                  <button onClick={() => { activeProject && exportFullPdf(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
                     Export PDF
                   </button>
-                  <button onClick={() => { activeProject && exportFullPdf(activeProject, data.versions, true); setOptionsOpen(false); }} disabled={!activeProject}>
+                  <button onClick={() => { activeProject && exportFullPdf(activeProject, data, true); setOptionsOpen(false); }} disabled={!activeProject}>
                     Export Revision PDF
                   </button>
-                  <button onClick={() => { activeProject && exportChangesPdf(activeProject, data.versions); setOptionsOpen(false); }} disabled={!activeProject}>
+                  <button onClick={() => { activeProject && exportChangesPdf(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
                     Export Changes PDF
-                  </button>
-                  <button onClick={() => { activeProject && exportProjectBackup(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
-                    Export Project Backup JSON
                   </button>
                 </section>
 
@@ -376,6 +468,55 @@ export function App() {
           </div>
         </div>
       </header>
+
+      {coverOpen && coverDraft && (
+        <div className="modal-scrim" role="dialog" aria-modal="true" aria-label="Cover page editor">
+          <section className="cover-editor">
+            <header>
+              <strong>Cover Page</strong>
+              <button onClick={() => setCoverOpen(false)} aria-label="Close cover page editor">Close</button>
+            </header>
+            <div className="cover-preview">
+              <label>
+                Title
+                <input
+                  name="cover-title"
+                  value={coverDraft.title}
+                  onChange={(event) => setCoverDraft({ ...coverDraft, title: event.target.value })}
+                />
+              </label>
+              <label>
+                Written by
+                <input
+                  name="cover-written-by"
+                  value={coverDraft.writtenBy}
+                  onChange={(event) => setCoverDraft({ ...coverDraft, writtenBy: event.target.value })}
+                />
+              </label>
+              <label>
+                Contact details
+                <textarea
+                  name="cover-contact"
+                  value={coverDraft.contact}
+                  onChange={(event) => setCoverDraft({ ...coverDraft, contact: event.target.value })}
+                />
+              </label>
+              <label>
+                Date
+                <input
+                  name="cover-date"
+                  value={coverDraft.date}
+                  onChange={(event) => setCoverDraft({ ...coverDraft, date: event.target.value })}
+                />
+              </label>
+            </div>
+            <footer>
+              <button onClick={() => setCoverOpen(false)}>Cancel</button>
+              <button className="primary" onClick={saveCoverPage}>Save Cover Page</button>
+            </footer>
+          </section>
+        </div>
+      )}
 
       <main className="workspace">
         {activeProject ? (

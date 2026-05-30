@@ -17,6 +17,12 @@ export function createProject(title = "Untitled Draft"): AppData {
     writingMode: "script",
     createdAt,
     updatedAt: createdAt,
+    coverPage: {
+      title,
+      writtenBy: "",
+      contact: "",
+      date: createdAt.slice(0, 10),
+    },
     drafts: [],
     scenes: [
       {

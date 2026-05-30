@@ -1076,6 +1076,93 @@ mark {
   z-index: 28;
 }
 
+.modal-scrim {
+  position: fixed;
+  inset: 58px 0 0;
+  z-index: 36;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(31, 35, 40, 0.18);
+}
+
+.cover-editor {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 110px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--page);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+}
+
+.cover-editor header,
+.cover-editor footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cover-editor header button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.cover-editor footer {
+  justify-content: flex-end;
+}
+
+.cover-preview {
+  min-height: 520px;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: var(--paper);
+  padding: 34px;
+  display: grid;
+  grid-template-rows: 1fr auto auto auto;
+  gap: 14px;
+}
+
+.cover-preview label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cover-preview input,
+.cover-preview textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--page);
+  padding: 10px;
+  color: var(--text);
+}
+
+.cover-preview label:first-child {
+  align-self: center;
+}
+
+.cover-preview label:first-child input {
+  min-height: 54px;
+  text-align: center;
+  text-transform: uppercase;
+  font-family: var(--draft-font-family);
+  font-size: 24px;
+}
+
+.cover-preview textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
 .drawer {
   position: absolute;
   top: 0;

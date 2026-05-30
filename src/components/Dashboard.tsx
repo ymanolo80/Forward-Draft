@@ -1,7 +1,8 @@
 import type { AppData, Project } from "../types";
 import { createProject } from "../lib/seed";
 import { createId, nowIso } from "../lib/ids";
-import { exportProjectBackup } from "../lib/exports";
+import { exportProjectFile } from "../lib/exports";
+import { appendProjectFileDocument, parseProjectFileText, projectTitleFromFileName } from "../lib/projectFile";
 
 interface DashboardProps {
   data: AppData;
@@ -120,17 +121,18 @@ export function Dashboard({ data, setData, activeProject }: DashboardProps) {
     });
   };
 
-  const importBackup = async (file?: File) => {
+  const openProjectFile = async (file?: File) => {
     if (!file) return;
-    const backup = JSON.parse(await file.text());
-    setData({
-      projects: [...data.projects, backup.project],
-      versions: [...data.versions, ...backup.versions],
-      notes: [...data.notes, ...backup.notes],
-      highlights: [...data.highlights, ...backup.highlights],
-      tasks: [...data.tasks, ...backup.tasks],
-      activeProjectId: backup.project.projectId,
-    });
+    try {
+      const projectFile = parseProjectFileText(await file.text());
+      const result = appendProjectFileDocument(data, projectFile, { preferredTitle: projectTitleFromFileName(file.name) });
+      setData(result.data);
+      if (result.importedAsCopy) {
+        alert(`Opened "${projectFile.project.title}" as "${result.title}" because that project already exists here.`);
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "This project file could not be opened.");
+    }
   };
 
   return (
@@ -160,12 +162,19 @@ export function Dashboard({ data, setData, activeProject }: DashboardProps) {
         <button onClick={deleteActive} disabled={!activeProject}>
           Delete
         </button>
-        <button onClick={() => activeProject && exportProjectBackup(activeProject, data)} disabled={!activeProject}>
-          Backup
+        <button onClick={async () => activeProject && exportProjectFile(activeProject, data)} disabled={!activeProject}>
+          Save Project File
         </button>
         <label className="file-button">
-          Import
-          <input type="file" accept=".json" onChange={(event) => importBackup(event.target.files?.[0])} />
+          Open Project File
+          <input
+            type="file"
+            accept=".frdx"
+            onChange={(event) => {
+              openProjectFile(event.target.files?.[0]);
+              event.currentTarget.value = "";
+            }}
+          />
         </label>
       </div>
     </aside>

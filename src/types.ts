@@ -47,6 +47,13 @@ export interface DraftBlock {
   createdAt: string;
 }
 
+export interface CoverPage {
+  title: string;
+  writtenBy: string;
+  contact: string;
+  date: string;
+}
+
 export interface Project {
   projectId: string;
   title: string;
@@ -55,6 +62,7 @@ export interface Project {
   updatedAt: string;
   drafts: DraftBlock[];
   scenes: Scene[];
+  coverPage?: CoverPage;
 }
 
 export interface Scene {

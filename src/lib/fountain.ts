@@ -56,6 +56,218 @@ export function exportFountain(project: Project, scenes: Scene[], versions: Scen
     .join("\n\n");
 }
 
+interface FountainTitlePage {
+  title?: string;
+  writtenBy?: string;
+  contact?: string;
+  date?: string;
+  consumedLines: number;
+}
+
+interface FountainImportResult {
+  project: Project;
+  versions: SceneVersion[];
+}
+
+const titlePageKeys = new Set([
+  "title",
+  "credit",
+  "author",
+  "authors",
+  "source",
+  "draft date",
+  "date",
+  "contact",
+  "copyright",
+]);
+
+const sceneHeadingPattern =
+  /^\s*(?:\.{1}(?!\.)\S|(?:INT|EXT|EST|I\/E|INT\/EXT|EXT\/INT|INT\.\/EXT|EXT\.\/INT)[\s./])/i;
+
+function fileTitle(name: string) {
+  return (
+    name
+      .replace(/\.[^.]+$/, "")
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim() || "Imported Script"
+  );
+}
+
+function normalizedTitleKey(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function parseFountainTitlePage(lines: string[]): FountainTitlePage {
+  const fields = new Map<string, string[]>();
+  let currentKey = "";
+  let consumedLines = 0;
+  let foundField = false;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index];
+    const match = raw.match(/^([A-Za-z][A-Za-z0-9 _-]{0,40}):\s*(.*)$/);
+    const key = match ? normalizedTitleKey(match[1]) : "";
+
+    if (match && titlePageKeys.has(key)) {
+      foundField = true;
+      currentKey = key;
+      const value = match[2].trim();
+      if (!fields.has(currentKey)) fields.set(currentKey, []);
+      if (value) fields.get(currentKey)!.push(value);
+      consumedLines = index + 1;
+      continue;
+    }
+
+    if (foundField && currentKey && (/^\s+/.test(raw) || raw.trim() === "")) {
+      const value = raw.trim();
+      if (value) fields.get(currentKey)!.push(value);
+      consumedLines = index + 1;
+      continue;
+    }
+
+    if (!foundField && raw.trim() === "") {
+      consumedLines = index + 1;
+      continue;
+    }
+
+    break;
+  }
+
+  const pick = (...keys: string[]) =>
+    keys
+      .flatMap((key) => fields.get(key) ?? [])
+      .join("\n")
+      .trim() || undefined;
+
+  return {
+    title: pick("title"),
+    writtenBy: pick("author", "authors"),
+    contact: pick("contact"),
+    date: pick("draft date", "date"),
+    consumedLines: foundField ? consumedLines : 0,
+  };
+}
+
+function cleanFountainSceneHeading(line: string) {
+  return line
+    .trim()
+    .replace(/^\.(?!\.)/, "")
+    .replace(/\s+#.+?#\s*$/, "")
+    .trim()
+    .toUpperCase();
+}
+
+function isFountainSceneHeading(line: string) {
+  return sceneHeadingPattern.test(line.trim());
+}
+
+export function importFountainProject(fileName: string, content: string): FountainImportResult {
+  const normalized = content.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+  if (!normalized.trim()) throw new Error("This Fountain file is empty.");
+
+  const lines = normalized.split("\n");
+  const titlePage = parseFountainTitlePage(lines);
+  const scriptLines = lines.slice(titlePage.consumedLines);
+  const projectId = createId("project");
+  const createdAt = nowIso();
+  const title = titlePage.title || fileTitle(fileName);
+  const scenes: Scene[] = [];
+  const versions: SceneVersion[] = [];
+  let currentLines: string[] = [];
+  let currentHeading = "UNTITLED SCENE";
+
+  const flushScene = () => {
+    const text = currentLines.join("\n").trim();
+    if (!text) {
+      currentLines = [];
+      return;
+    }
+
+    const sceneId = createId("scene");
+    const versionId = createId("version");
+    scenes.push({
+      sceneId,
+      projectId,
+      heading: currentHeading,
+      order: scenes.length + 1,
+      currentVersionId: versionId,
+      status: "For Review",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    versions.push({
+      versionId,
+      sceneId,
+      versionNumber: 1,
+      text,
+      createdAt,
+      isCurrent: true,
+    });
+    currentLines = [];
+  };
+
+  for (const rawLine of scriptLines) {
+    const line = rawLine.trimEnd();
+    if (isFountainSceneHeading(line)) {
+      const preamble = scenes.length === 0 && currentLines.some((item) => item.trim())
+        ? currentLines
+        : [];
+      if (preamble.length === 0) flushScene();
+      currentHeading = cleanFountainSceneHeading(line);
+      currentLines = preamble.length > 0 ? [currentHeading, "", ...preamble] : [currentHeading];
+      continue;
+    }
+    currentLines.push(line);
+  }
+
+  flushScene();
+
+  if (scenes.length === 0) {
+    const fallbackText = scriptLines.join("\n").trim();
+    if (!fallbackText) throw new Error("This Fountain file does not contain script text.");
+    const sceneId = createId("scene");
+    const versionId = createId("version");
+    scenes.push({
+      sceneId,
+      projectId,
+      heading: currentHeading,
+      order: 1,
+      currentVersionId: versionId,
+      status: "For Review",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    versions.push({
+      versionId,
+      sceneId,
+      versionNumber: 1,
+      text: fallbackText,
+      createdAt,
+      isCurrent: true,
+    });
+  }
+
+  return {
+    project: {
+      projectId,
+      title,
+      writingMode: "script",
+      createdAt,
+      updatedAt: createdAt,
+      coverPage: {
+        title,
+        writtenBy: titlePage.writtenBy ?? "",
+        contact: titlePage.contact ?? "",
+        date: titlePage.date ?? createdAt.slice(0, 10),
+      },
+      drafts: [],
+      scenes,
+    },
+    versions,
+  };
+}
+
 export function draftBlocksToScenes(projectId: string, blocks: DraftBlock[], sectionLabel: "scene" | "chapter" = "scene") {
   const scenes: Scene[] = [];
   const versions: SceneVersion[] = [];
