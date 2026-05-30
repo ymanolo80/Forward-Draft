@@ -385,6 +385,32 @@ export function WriteMode({
             <strong>{liveElement}</strong>
           </header>
 
+          {project.writingMode === "freewrite" && (
+            <section className="tool-section">
+              <h3>Freewrite Unit</h3>
+              <div className="segmented">
+                <button
+                  className={element !== "Chapter Heading" ? "active" : ""}
+                  onClick={() => {
+                    setElement("General Text");
+                    inputRef.current?.focus();
+                  }}
+                >
+                  Paragraph
+                </button>
+                <button
+                  className={element === "Chapter Heading" ? "active" : ""}
+                  onClick={() => {
+                    setElement("Chapter Heading");
+                    inputRef.current?.focus();
+                  }}
+                >
+                  Chapter
+                </button>
+              </div>
+            </section>
+          )}
+
           <section className="tool-section">
             <h3>{project.writingMode === "script" ? "New Scene Placement" : "New Chapter Placement"}</h3>
             <label>
@@ -420,7 +446,7 @@ export function WriteMode({
           </section>
 
           <section className="tool-section">
-            <h3>Text Window</h3>
+            <h3>Visible Text Window</h3>
             <label>
               Visible text
               <select name="visible-text" value={visibility} onChange={(event) => setVisibility(event.target.value as VisibilityRule)}>
@@ -443,7 +469,7 @@ export function WriteMode({
             </label>
           </section>
 
-          {project.writingMode === "script" ? (
+          {project.writingMode === "script" && (
             <section className="tool-section">
               <h3>Script Element</h3>
               <div className="element-grid" role="toolbar" aria-label="Screenplay element toolbar">
@@ -460,30 +486,6 @@ export function WriteMode({
                     {item === "Scene Heading" ? "Heading" : item}
                   </button>
                 ))}
-              </div>
-            </section>
-          ) : (
-            <section className="tool-section">
-              <h3>Freewrite Unit</h3>
-              <div className="segmented">
-                <button
-                  className={element !== "Chapter Heading" ? "active" : ""}
-                  onClick={() => {
-                    setElement("General Text");
-                    inputRef.current?.focus();
-                  }}
-                >
-                  Paragraph
-                </button>
-                <button
-                  className={element === "Chapter Heading" ? "active" : ""}
-                  onClick={() => {
-                    setElement("Chapter Heading");
-                    inputRef.current?.focus();
-                  }}
-                >
-                  Chapter
-                </button>
               </div>
             </section>
           )}
