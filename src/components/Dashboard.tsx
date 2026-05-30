@@ -2,7 +2,8 @@ import type { AppData, Project } from "../types";
 import { createProject } from "../lib/seed";
 import { createId, nowIso } from "../lib/ids";
 import { exportProjectFile } from "../lib/exports";
-import { appendProjectFileDocument, parseProjectFileText, projectTitleFromFileName } from "../lib/projectFile";
+import { readTextFile } from "../lib/fileService";
+import { openProjectFileIntoData } from "../lib/projectIO";
 
 interface DashboardProps {
   data: AppData;
@@ -124,11 +125,11 @@ export function Dashboard({ data, setData, activeProject }: DashboardProps) {
   const openProjectFile = async (file?: File) => {
     if (!file) return;
     try {
-      const projectFile = parseProjectFileText(await file.text());
-      const result = appendProjectFileDocument(data, projectFile, { preferredTitle: projectTitleFromFileName(file.name) });
+      const source = await readTextFile(file);
+      const result = openProjectFileIntoData(data, source);
       setData(result.data);
       if (result.importedAsCopy) {
-        alert(`Opened "${projectFile.project.title}" as "${result.title}" because that project already exists here.`);
+        alert(`Opened "${result.originalTitle}" as "${result.title}" because that project already exists here.`);
       }
     } catch (error) {
       alert(error instanceof Error ? error.message : "This project file could not be opened.");

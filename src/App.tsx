@@ -3,9 +3,9 @@ import { ReviewMode } from "./components/ReviewMode";
 import { RewriteMode } from "./components/RewriteMode";
 import { WriteMode } from "./components/WriteMode";
 import { exportChangesPdf, exportFountainFile, exportFullPdf, exportProjectFile, exportText } from "./lib/exports";
-import { importFountainProject } from "./lib/fountain";
+import { readTextFile } from "./lib/fileService";
 import { createId, nowIso } from "./lib/ids";
-import { appendProjectFileDocument, parseProjectFileText, projectTitleFromFileName } from "./lib/projectFile";
+import { importFountainIntoData, openProjectFileIntoData } from "./lib/projectIO";
 import { createProject } from "./lib/seed";
 import { emptyData, loadData, saveData } from "./lib/storage";
 import type { AppData, AppMode, CoverPage, FadeTiming, FontFamilyChoice, FontSettings, Project, VisibilityRule, WritingMode } from "./types";
@@ -38,16 +38,6 @@ function defaultCoverPage(project: Project): CoverPage {
     contact: project.coverPage?.contact ?? "",
     date: project.coverPage?.date || project.createdAt.slice(0, 10),
   };
-}
-
-function uniqueProjectTitle(title: string, data: AppData) {
-  const existing = new Set(data.projects.map((project) => project.title));
-  if (!existing.has(title)) return title;
-  const copyTitle = `${title} Copy`;
-  if (!existing.has(copyTitle)) return copyTitle;
-  let index = 2;
-  while (existing.has(`${copyTitle} ${index}`)) index += 1;
-  return `${copyTitle} ${index}`;
 }
 
 export function App() {
@@ -305,12 +295,12 @@ export function App() {
   const openProjectFile = async (file?: File) => {
     if (!file) return;
     try {
-      const projectFile = parseProjectFileText(await file.text());
-      const result = appendProjectFileDocument(data, projectFile, { preferredTitle: projectTitleFromFileName(file.name) });
+      const source = await readTextFile(file);
+      const result = openProjectFileIntoData(data, source);
       setData(result.data);
       setMode("write");
       if (result.importedAsCopy) {
-        alert(`Opened "${projectFile.project.title}" as "${result.title}" because that project already exists here.`);
+        alert(`Opened "${result.originalTitle}" as "${result.title}" because that project already exists here.`);
       }
     } catch (error) {
       alert(error instanceof Error ? error.message : "This project file could not be opened.");
@@ -320,24 +310,9 @@ export function App() {
   const importFountainFile = async (file?: File) => {
     if (!file) return;
     try {
-      const imported = importFountainProject(file.name, await file.text());
-      const title = uniqueProjectTitle(imported.project.title, data);
-      const project: Project = {
-        ...imported.project,
-        title,
-        coverPage: {
-          title: imported.project.coverPage?.title || title,
-          writtenBy: imported.project.coverPage?.writtenBy ?? "",
-          contact: imported.project.coverPage?.contact ?? "",
-          date: imported.project.coverPage?.date ?? imported.project.createdAt.slice(0, 10),
-        },
-      };
-      setData({
-        ...data,
-        projects: [...data.projects, project],
-        versions: [...data.versions, ...imported.versions],
-        activeProjectId: project.projectId,
-      });
+      const source = await readTextFile(file);
+      const result = importFountainIntoData(data, source);
+      setData(result.data);
       setMode("review");
     } catch (error) {
       alert(error instanceof Error ? error.message : "This Fountain file could not be imported.");
@@ -446,19 +421,19 @@ export function App() {
 
                 <section className="menu-section">
                   <strong>Export</strong>
-                  <button onClick={() => { activeProject && exportFountainFile(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
+                  <button onClick={async () => { if (activeProject) await exportFountainFile(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
                     Export Fountain
                   </button>
-                  <button onClick={() => { activeProject && exportText(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
+                  <button onClick={async () => { if (activeProject) await exportText(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
                     Export TXT
                   </button>
-                  <button onClick={() => { activeProject && exportFullPdf(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
+                  <button onClick={async () => { if (activeProject) await exportFullPdf(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
                     Export PDF
                   </button>
-                  <button onClick={() => { activeProject && exportFullPdf(activeProject, data, true); setOptionsOpen(false); }} disabled={!activeProject}>
+                  <button onClick={async () => { if (activeProject) await exportFullPdf(activeProject, data, true); setOptionsOpen(false); }} disabled={!activeProject}>
                     Export Revision PDF
                   </button>
-                  <button onClick={() => { activeProject && exportChangesPdf(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
+                  <button onClick={async () => { if (activeProject) await exportChangesPdf(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
                     Export Changes PDF
                   </button>
                 </section>

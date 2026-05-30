@@ -1,94 +1,24 @@
 import jsPDF from "jspdf";
 import type { AppData, CoverPage, Project, ReviewNote, Scene, SceneVersion } from "../types";
+import { savePortableFile, type FileSaveResult } from "./fileService";
 import { PROJECT_FILE_MIME, projectFileName, serializeProjectFile } from "./projectFile";
 
-type SaveFilePicker = (options: {
-  suggestedName?: string;
-  types?: Array<{
-    description: string;
-    accept: Record<string, string[]>;
-  }>;
-}) => Promise<{
-  createWritable: () => Promise<{
-    write: (data: Blob) => Promise<void>;
-    close: () => Promise<void>;
-  }>;
-}>;
-
-type FileShareNavigator = Navigator & {
-  canShare?: (data: { files: File[]; title?: string }) => boolean;
-  share?: (data: { files: File[]; title?: string }) => Promise<void>;
-};
-
-export type ProjectFileSaveResult = "saved" | "shared" | "downloaded" | "cancelled";
-
-function download(name: string, type: string, content: BlobPart) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  window.setTimeout(() => {
-    URL.revokeObjectURL(url);
-    link.remove();
-  }, 1000);
-}
-
-async function saveWithPicker(picker: SaveFilePicker, name: string, type: string, content: BlobPart): Promise<"saved" | "cancelled" | false> {
-  const blob = new Blob([content], { type });
-  try {
-    const handle = await picker({
-      suggestedName: name,
-      types: [
-        {
-          description: "Forward Draft project",
-          accept: {
-            [PROJECT_FILE_MIME]: [".frdx"],
-          },
-        },
-      ],
-    });
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return "saved";
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
-    console.error("Save picker failed", error);
-    return false;
-  }
-}
-
-async function shareProjectFile(name: string, type: string, content: BlobPart): Promise<"shared" | "cancelled" | false> {
-  const file = new File([content], name, { type });
-  const shareData = { files: [file], title: name };
-  const shareNavigator = navigator as FileShareNavigator;
-  if (!shareNavigator.share || !shareNavigator.canShare?.(shareData)) return false;
-  try {
-    await shareNavigator.share(shareData);
-    return "shared";
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
-    console.error("File share failed", error);
-    return false;
-  }
-}
+export type ProjectFileSaveResult = FileSaveResult;
 
 export async function exportProjectFile(project: Project, data: AppData): Promise<ProjectFileSaveResult> {
-  const name = projectFileName(project);
-  const content = serializeProjectFile(project, data);
-  const picker = (window as Window & { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
-  if (picker && window.isSecureContext) {
-    const savedWithPicker = await saveWithPicker(picker, name, PROJECT_FILE_MIME, content);
-    if (savedWithPicker) return savedWithPicker;
-  }
-  const shared = await shareProjectFile(name, PROJECT_FILE_MIME, content);
-  if (shared) return shared;
-  download(name, PROJECT_FILE_MIME, content);
-  return "downloaded";
+  return savePortableFile(
+    {
+      name: projectFileName(project),
+      mimeType: PROJECT_FILE_MIME,
+      content: serializeProjectFile(project, data),
+    },
+    {
+      description: "Forward Draft project",
+      accept: {
+        [PROJECT_FILE_MIME]: [".frdx"],
+      },
+    },
+  );
 }
 
 function safeFileStem(value: string) {
@@ -151,11 +81,35 @@ function fountainCover(project: Project) {
 }
 
 export function exportText(project: Project, data: AppData) {
-  download(`${safeFileStem(project.title)}.txt`, "text/plain", `${coverText(project)}\n\n\n${fullScript(project, data)}`);
+  return savePortableFile(
+    {
+      name: `${safeFileStem(project.title)}.txt`,
+      mimeType: "text/plain",
+      content: `${coverText(project)}\n\n\n${fullScript(project, data)}`,
+    },
+    {
+      description: "Plain text",
+      accept: {
+        "text/plain": [".txt"],
+      },
+    },
+  );
 }
 
 export function exportFountainFile(project: Project, data: AppData) {
-  download(`${safeFileStem(project.title)}.fountain`, "text/plain", `${fountainCover(project)}${fullScript(project, data)}`);
+  return savePortableFile(
+    {
+      name: `${safeFileStem(project.title)}.fountain`,
+      mimeType: "text/plain",
+      content: `${fountainCover(project)}${fullScript(project, data)}`,
+    },
+    {
+      description: "Fountain screenplay",
+      accept: {
+        "text/plain": [".fountain"],
+      },
+    },
+  );
 }
 
 function drawCoverPage(pdf: jsPDF, project: Project) {
@@ -334,12 +288,36 @@ export function exportFullPdf(project: Project, data: AppData, revisionMarked = 
   drawCoverPage(pdf, project);
   if (revisionMarked) drawAnnotatedScript(pdf, project, data, false);
   else addCleanScript(pdf, project, data);
-  pdf.save(`${safeFileStem(project.title)}${revisionMarked ? "-revision-notes" : ""}.pdf`);
+  return savePortableFile(
+    {
+      name: `${safeFileStem(project.title)}${revisionMarked ? "-revision-notes" : ""}.pdf`,
+      mimeType: "application/pdf",
+      content: pdf.output("blob"),
+    },
+    {
+      description: "PDF",
+      accept: {
+        "application/pdf": [".pdf"],
+      },
+    },
+  );
 }
 
 export function exportChangesPdf(project: Project, data: AppData) {
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
   drawCoverPage(pdf, project);
   drawAnnotatedScript(pdf, project, data, true);
-  pdf.save(`${safeFileStem(project.title)}-changes-only.pdf`);
+  return savePortableFile(
+    {
+      name: `${safeFileStem(project.title)}-changes-only.pdf`,
+      mimeType: "application/pdf",
+      content: pdf.output("blob"),
+    },
+    {
+      description: "PDF",
+      accept: {
+        "application/pdf": [".pdf"],
+      },
+    },
+  );
 }
