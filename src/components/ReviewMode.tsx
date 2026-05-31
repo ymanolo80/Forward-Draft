@@ -62,6 +62,7 @@ function applyAnnotations(
     parts.push(
       <mark
         className={annotationClass(annotation)}
+        data-note-id={noteId ?? undefined}
         key={`${rangeStart}-${rangeEnd}-${noteId ?? annotation.selectedText}`}
         onClick={(event) => {
           if (!noteId) return;
@@ -121,7 +122,7 @@ export function ReviewMode({
   const [compareVersionId, setCompareVersionId] = useState("");
   const [scenePaneOpen, setScenePaneOpen] = useState(true);
   const [showScenes, setShowScenes] = useState(false);
-  const [showNotes, setShowNotes] = useState(false);
+  const [showNotes, setShowNotes] = useState(true);
   const [reordering, setReordering] = useState(false);
   const [dragSceneId, setDragSceneId] = useState<string | undefined>();
   const [dropIndex, setDropIndex] = useState<number | undefined>();
@@ -288,6 +289,21 @@ export function ReviewMode({
     setActiveNoteId(noteId);
   };
 
+  const openAnchoredNote = (noteId: string) => {
+    const target =
+      document.querySelector<HTMLElement>(`[data-note-id="${noteId}"] .note-pin`) ??
+      document.querySelector<HTMLElement>(`[data-note-id="${noteId}"]`);
+    if (!target) {
+      openNote(noteId);
+      return;
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => {
+      const rect = target.getBoundingClientRect();
+      openNote(noteId, { x: rect.right, y: rect.top + rect.height / 2 });
+    }, 180);
+  };
+
   const openScene = (sceneId: string) => {
     setSelectedSceneId(sceneId);
     setShowScenes(false);
@@ -417,7 +433,15 @@ export function ReviewMode({
             <aside className="review-scene-pane">
               <header>
                 <strong>{sceneLabelPlural}</strong>
-                <button onClick={() => setScenePaneOpen(false)}>Hide</button>
+                <div className="scene-pane-actions">
+                  <button
+                    className={reordering ? "active" : ""}
+                    onClick={() => setReordering((value) => !value)}
+                  >
+                    {reordering ? "Done" : "Reorder"}
+                  </button>
+                  <button onClick={() => setScenePaneOpen(false)}>Hide</button>
+                </div>
               </header>
               <div className={`scene-drawer-list ${reordering ? "is-reordering" : ""}`}>{sortedScenes.map(renderSceneButton)}</div>
             </aside>
@@ -514,19 +538,8 @@ export function ReviewMode({
                 </>
               )}
               <div className="tool-button-row">
-                <button onClick={() => setScenePaneOpen((open) => !open)}>{scenePaneOpen ? `Hide ${sceneLabelPlural}` : `Show ${sceneLabelPlural}`}</button>
                 <button className="mobile-scenes-button" onClick={() => setShowScenes(true)}>Open {sceneLabelPlural}</button>
-                <button className={showNotes ? "active" : ""} onClick={() => setShowNotes((open) => !open)}>Notes</button>
               </div>
-              <button
-                className={reordering ? "active" : ""}
-                onClick={() => {
-                  setScenePaneOpen(true);
-                  setReordering((value) => !value);
-                }}
-              >
-                {reordering ? "Done Reordering" : `Reorder ${sceneLabelPlural}`}
-              </button>
             </section>
 
             <section className="tool-section">
@@ -541,24 +554,30 @@ export function ReviewMode({
               <h3>Mark</h3>
               <p className="tool-hint">{selection ? selection.text : "Select text on the page to mark it."}</p>
               <div className="tool-button-row">
-                <button onClick={openComposer} disabled={!selection}>Mark Selection</button>
+                <button className="validate-button" onClick={openComposer} disabled={!selection}>Mark Selection</button>
               </div>
             </section>
 
-            {showNotes && (
-              <section className="tool-section tool-list-section">
+            <section className="tool-section tool-list-section">
+              <div className="tool-section-title-row">
                 <h3>Notes</h3>
+                <button onClick={() => setShowNotes((open) => !open)}>{showNotes ? "Hide" : "Show"}</button>
+              </div>
+              {showNotes ? (
                 <div className="notes-drawer-list">
                   {notes.map((note) => (
-                    <button key={note.noteId} className="note-drawer-card" onClick={() => openNote(note.noteId)}>
+                    <button key={note.noteId} className="note-drawer-card" onClick={() => openAnchoredNote(note.noteId)}>
                       <strong>Note</strong>
+                      {note.selectedText && <span className="note-source-text">{note.selectedText}</span>}
                       <span>{note.noteText || note.selectedText || "Highlight only"}</span>
                     </button>
                   ))}
                   {notes.length === 0 && <p className="subtle-empty">No notes on this scene.</p>}
                 </div>
-              </section>
-            )}
+              ) : (
+                <p className="subtle-empty">Notes hidden.</p>
+              )}
+            </section>
 
             <ToolFontControls fontSettings={fontSettings} setFontSettings={setFontSettings} />
 
@@ -586,7 +605,7 @@ export function ReviewMode({
               </header>
               <p>{selection?.text}</p>
               <textarea name="new-review-note" value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} placeholder="Add a note for this mark..." />
-              <button className="primary" onClick={saveNote}>Save Mark</button>
+              <button className="validate-button" onClick={saveNote}>Save Mark</button>
             </div>
           )}
 
@@ -625,7 +644,15 @@ export function ReviewMode({
               <aside className="drawer left-drawer" onClick={(event) => event.stopPropagation()}>
                 <header>
                   <strong>{sceneLabelPlural}</strong>
-                  <button onClick={() => setShowScenes(false)}>Close</button>
+                  <div className="scene-pane-actions">
+                    <button
+                      className={reordering ? "active" : ""}
+                      onClick={() => setReordering((value) => !value)}
+                    >
+                      {reordering ? "Done" : "Reorder"}
+                    </button>
+                    <button onClick={() => setShowScenes(false)}>Close</button>
+                  </div>
                 </header>
                 <div className={`scene-drawer-list ${reordering ? "is-reordering" : ""}`}>{sortedScenes.map(renderSceneButton)}</div>
               </aside>

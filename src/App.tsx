@@ -10,6 +10,8 @@ import { createProject } from "./lib/seed";
 import { emptyData, loadData, saveData } from "./lib/storage";
 import type { AppData, AppMode, CoverPage, FadeTiming, FontFamilyChoice, FontSettings, Project, VisibilityRule, WritingMode } from "./types";
 
+type ThemeMode = "system" | "light" | "dark";
+
 const fontFamilyMap: Record<FontFamilyChoice, string> = {
   screenplay: '"Courier Prime", "Courier New", Courier, monospace',
   system: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -43,6 +45,10 @@ function defaultCoverPage(project: Project): CoverPage {
 export function App() {
   const [data, setDataState] = useState<AppData>(emptyData);
   const [mode, setMode] = useState<AppMode>("write");
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    const stored = localStorage.getItem("forward-draft-theme");
+    return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+  });
   const [loaded, setLoaded] = useState(false);
   const [undoStack, setUndoStack] = useState<AppData[]>([]);
   const [redoStack, setRedoStack] = useState<AppData[]>([]);
@@ -71,6 +77,11 @@ export function App() {
       })
       .finally(() => setLoaded(true));
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = themeMode;
+    localStorage.setItem("forward-draft-theme", themeMode);
+  }, [themeMode]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -400,6 +411,22 @@ export function App() {
                   <button onClick={() => { rename(); setOptionsOpen(false); }} disabled={!activeProject}>Rename Project</button>
                   <button onClick={() => { duplicate(); setOptionsOpen(false); }} disabled={!activeProject}>Duplicate Project</button>
                   <button onClick={() => { deleteActive(); setOptionsOpen(false); }} disabled={!activeProject}>Delete Project</button>
+                </section>
+
+                <section className="menu-section">
+                  <strong>Appearance</strong>
+                  <label>
+                    Theme
+                    <select
+                      name="theme-mode"
+                      value={themeMode}
+                      onChange={(event) => setThemeMode(event.target.value as ThemeMode)}
+                    >
+                      <option value="system">System</option>
+                      <option value="light">Light</option>
+                      <option value="dark">Dark</option>
+                    </select>
+                  </label>
                 </section>
 
                 <section className="menu-section">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ToolFontControls } from "./ToolFontControls";
 import type { AppData, FontSettings, Project, ReviewNote, Scene } from "../types";
 import { createId, nowIso } from "../lib/ids";
@@ -26,11 +26,118 @@ function highlightText(text: string, notes: ReviewNote[]) {
     .sort((a, b) => a.rangeStart - b.rangeStart)
     .forEach((note) => {
       parts.push(text.slice(cursor, note.rangeStart));
-      parts.push(<mark key={note.noteId}>{text.slice(note.rangeStart, note.rangeEnd)}</mark>);
+      parts.push(
+        <mark className="rewrite-highlight" data-rewrite-note-id={note.noteId} key={note.noteId}>
+          {text.slice(note.rangeStart, note.rangeEnd)}
+        </mark>,
+      );
       cursor = note.rangeEnd;
     });
   parts.push(text.slice(cursor));
   return parts;
+}
+
+function RewriteSource({ text, notes, showNotes }: { text: string; notes: ReviewNote[]; showNotes: boolean }) {
+  const sourceRef = useRef<HTMLDivElement>(null);
+  const [layout, setLayout] = useState<{
+    cardTops: Record<string, number>;
+    connectors: { noteId: string; path: string }[];
+    railHeight: number;
+  }>({ cardTops: {}, connectors: [], railHeight: 0 });
+  const visibleNotes = useMemo(
+    () => notes.filter((note) => !note.resolved && note.selectedText).sort((a, b) => a.rangeStart - b.rangeStart),
+    [notes],
+  );
+
+  useLayoutEffect(() => {
+    const source = sourceRef.current;
+    if (!source) return undefined;
+    if (!showNotes) {
+      setLayout({ cardTops: {}, connectors: [], railHeight: 0 });
+      return undefined;
+    }
+
+    let frame = 0;
+    const measure = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const sourceRect = source.getBoundingClientRect();
+        const rail = source.querySelector<HTMLElement>(".rewrite-note-rail");
+        const script = source.querySelector<HTMLElement>("pre");
+        if (!rail || !script) return;
+
+        let lastBottom = 0;
+        const cardTops: Record<string, number> = {};
+        const next = visibleNotes.flatMap((note) => {
+          const highlight = source.querySelector<HTMLElement>(`[data-rewrite-note-id="${note.noteId}"]`);
+          const card = source.querySelector<HTMLElement>(`[data-rewrite-note-card="${note.noteId}"]`);
+          if (!highlight || !card) return [];
+
+          const highlightRect = highlight.getBoundingClientRect();
+          const cardRect = card.getBoundingClientRect();
+          const railRect = rail.getBoundingClientRect();
+          const cardHeight = cardRect.height;
+          const highlightY = highlightRect.top + highlightRect.height / 2 - sourceRect.top;
+          const proposedTop = Math.max(0, highlightY - (railRect.top - sourceRect.top) - cardHeight / 2);
+          const top = Math.max(proposedTop, lastBottom);
+          lastBottom = top + cardHeight + 8;
+          cardTops[note.noteId] = top;
+
+          const x1 = highlightRect.right - sourceRect.left + 4;
+          const y1 = highlightY;
+          const x2 = railRect.left - sourceRect.left - 8;
+          const y2 = railRect.top - sourceRect.top + top + cardHeight / 2;
+          const curve = Math.max(22, Math.abs(x2 - x1) * 0.42);
+          return [
+            {
+              noteId: note.noteId,
+              path: `M ${x1} ${y1} C ${x1 + curve} ${y1}, ${x2 - curve} ${y2}, ${x2} ${y2}`,
+            },
+          ];
+        });
+        const railHeight = Math.max(script.getBoundingClientRect().height, lastBottom);
+        setLayout({ cardTops, connectors: next, railHeight });
+      });
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : undefined;
+    observer?.observe(source);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+  }, [showNotes, text, visibleNotes]);
+
+  return (
+    <div className={`rewrite-source rewrite-source-connected ${showNotes ? "" : "notes-hidden"}`} ref={sourceRef}>
+      <pre>{highlightText(text, visibleNotes)}</pre>
+      {showNotes && (
+        <>
+          <svg className="rewrite-connectors" aria-hidden="true">
+            {layout.connectors.map((connector) => (
+              <path d={connector.path} key={connector.noteId} />
+            ))}
+          </svg>
+          <aside className="rewrite-note-rail" style={layout.railHeight ? { minHeight: layout.railHeight } : undefined}>
+            {visibleNotes.map((note) => (
+              <div
+                className="note rewrite-note-card"
+                data-rewrite-note-card={note.noteId}
+                key={note.noteId}
+                style={layout.cardTops[note.noteId] !== undefined ? { top: layout.cardTops[note.noteId] } : undefined}
+              >
+                <strong>Note</strong>
+                <p>{note.noteText || "Highlight only"}</p>
+              </div>
+            ))}
+          </aside>
+        </>
+      )}
+    </div>
+  );
 }
 
 export function RewriteMode({
@@ -46,7 +153,8 @@ export function RewriteMode({
   setFontSettings,
 }: RewriteModeProps) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>("single");
-  const [showNotes, setShowNotes] = useState(true);
+  const [showReviewedScene, setShowReviewedScene] = useState(true);
+  const [showReviewedNotes, setShowReviewedNotes] = useState(true);
   const [showContext, setShowContext] = useState(false);
   const [queueOpen, setQueueOpen] = useState(() => !window.matchMedia("(max-width: 720px)").matches);
   const [selectedSceneId, setSelectedSceneId] = useState(project.scenes[0]?.sceneId);
@@ -90,6 +198,7 @@ export function RewriteMode({
 
   const selected = queue.find((item) => item?.scene.sceneId === selectedSceneId) ?? queue[0];
   const sectionLabel = project.writingMode === "freewrite" ? "Chapter" : "Scene";
+  const selectedDraftText = selected ? drafts[selected.scene.sceneId] ?? selected.version?.text ?? "" : "";
 
   const markDone = (scene: Scene, text: string) => {
     const oldVersion = data.versions.find((version) => version.versionId === scene.currentVersionId);
@@ -147,19 +256,26 @@ export function RewriteMode({
 
     return (
       <article
-        className="rewrite-card"
+        className={`rewrite-card ${scene.sceneId === selected?.scene.sceneId ? "active-rewrite-card" : ""}`}
         key={scene.sceneId}
+        onClick={() => setSelectedSceneId(scene.sceneId)}
+        onFocus={() => setSelectedSceneId(scene.sceneId)}
         ref={(node) => {
           refs.current[scene.sceneId] = node;
         }}
       >
         <header>
-          <div>
-            <p className="eyebrow">
-              {project.writingMode === "script" ? `#${scene.order}` : `Chapter ${scene.order}`}
-            </p>
-            <h3>{scene.heading}</h3>
-          </div>
+          {project.writingMode === "script" ? (
+            <div className="rewrite-heading-line">
+              <span className="screenplay-scene-number">{scene.order}</span>
+              <h3>{scene.heading}</h3>
+            </div>
+          ) : (
+            <div>
+              <p className="eyebrow">Chapter {scene.order}</p>
+              <h3>{scene.heading}</h3>
+            </div>
+          )}
           <div className="labels">
             <span>{scene.status}</span>
             <span>V{version?.versionNumber ?? 1}</span>
@@ -172,18 +288,8 @@ export function RewriteMode({
             <pre>{previousVersion.text}</pre>
           </aside>
         )}
-        {showNotes && (
-          <div className="rewrite-source">
-            <pre>{highlightText(version?.text ?? "", notes)}</pre>
-            <aside>
-              {notes.map((note) => (
-                <div className="note" key={note.noteId}>
-                  <strong>Note</strong>
-                  <p>{note.noteText || note.selectedText || "Highlight only"}</p>
-                </div>
-              ))}
-            </aside>
-          </div>
+        {showReviewedScene && (
+          <RewriteSource text={version?.text ?? ""} notes={notes} showNotes={showReviewedNotes} />
         )}
         <textarea
           className="rewrite-editor"
@@ -192,9 +298,6 @@ export function RewriteMode({
           onChange={(event) => setDrafts({ ...drafts, [scene.sceneId]: event.target.value })}
           spellCheck
         />
-        <button className="primary" onClick={() => markDone(scene, text)}>
-          Mark Rewrite Done
-        </button>
         {showContext && nextVersion && !compact && (
           <aside className="context-scene-block next-context">
             <strong>Next {sectionLabel}</strong>
@@ -225,7 +328,7 @@ export function RewriteMode({
           </aside>
         )}
         <main className="rewrite-main">
-          {queue.length === 0 && <div className="empty-state">No rewrite {sectionLabel.toLowerCase()}s in the queue.</div>}
+          {queue.length === 0 && <div className="empty-state">No rewrite {sectionLabel.toLowerCase()}s in the scenes list.</div>}
           {displayMode === "single" && selected && (
             renderRewriteScene(selected)
           )}
@@ -235,7 +338,7 @@ export function RewriteMode({
         <aside className="mode-tools rewrite-tools" aria-label="Rewrite tools">
           <header className="mode-tools-header">
             <span>Rewrite Tools</span>
-            <strong>{queue.length} {sectionLabel.toLowerCase()}{queue.length === 1 ? "" : "s"} in queue</strong>
+            <strong>{queue.length} {sectionLabel.toLowerCase()}{queue.length === 1 ? "" : "s"} listed</strong>
           </header>
 
           <section className="tool-section">
@@ -249,8 +352,23 @@ export function RewriteMode({
               </button>
             </div>
             <label className="compact-check">
-              <input name="rewrite-notes" type="checkbox" checked={showNotes} onChange={(event) => setShowNotes(event.target.checked)} />
-              Notes
+              <input
+                name="rewrite-reviewed-scene"
+                type="checkbox"
+                checked={showReviewedScene}
+                onChange={(event) => setShowReviewedScene(event.target.checked)}
+              />
+              Reviewed scene
+            </label>
+            <label className="compact-check">
+              <input
+                name="rewrite-reviewed-notes"
+                type="checkbox"
+                checked={showReviewedNotes}
+                disabled={!showReviewedScene}
+                onChange={(event) => setShowReviewedNotes(event.target.checked)}
+              />
+              Notes in reviewed scene
             </label>
             <label className="compact-check">
               <input name="rewrite-context" type="checkbox" checked={showContext} onChange={(event) => setShowContext(event.target.checked)} />
@@ -259,18 +377,30 @@ export function RewriteMode({
           </section>
 
           <section className="tool-section">
-            <h3>Queue</h3>
-            <button className="tool-wide-button" onClick={() => setQueueOpen((open) => !open)}>{queueOpen ? "Hide Queue" : "Show Queue"}</button>
+            <h3>Scenes List</h3>
+            <button className="tool-wide-button" onClick={() => setQueueOpen((open) => !open)}>
+              {queueOpen ? "Hide Scenes List" : "Show Scenes List"}
+            </button>
           </section>
 
           {selected && (
             <section className="tool-section">
               <h3>Selected {sectionLabel}</h3>
               <div className="tool-summary">
-                <strong>{selected.scene.heading}</strong>
+                {project.writingMode === "script" ? (
+                  <div className="tool-selected-heading">
+                    <span className="screenplay-scene-number">{selected.scene.order}</span>
+                    <strong>{selected.scene.heading}</strong>
+                  </div>
+                ) : (
+                  <strong>Chapter {selected.scene.order}: {selected.scene.heading}</strong>
+                )}
                 <span>{sectionLabel} {selected.scene.order} · {selected.scene.status}</span>
                 <span>{selected.notes.length} open note{selected.notes.length === 1 ? "" : "s"}</span>
               </div>
+              <button className="validate-button" onClick={() => markDone(selected.scene, selectedDraftText)}>
+                Mark Rewrite Done
+              </button>
             </section>
           )}
 
