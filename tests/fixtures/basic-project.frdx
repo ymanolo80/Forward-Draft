@@ -1,0 +1,104 @@
+FRDX/1
+{
+  "app": "Forward Draft",
+  "kind": "forward-draft-project",
+  "schemaVersion": 1,
+  "savedAt": "2026-05-31T12:00:00.000Z",
+  "project": {
+    "projectId": "project_fixture_basic",
+    "title": "Fixture Project",
+    "writingMode": "script",
+    "createdAt": "2026-05-31T12:00:00.000Z",
+    "updatedAt": "2026-05-31T12:00:00.000Z",
+    "coverPage": {
+      "title": "Fixture Project",
+      "writtenBy": "Forward Draft QA",
+      "contact": "qa@example.com",
+      "date": "2026-05-31"
+    },
+    "drafts": [],
+    "scenes": [
+      {
+        "sceneId": "scene_fixture_room",
+        "projectId": "project_fixture_basic",
+        "heading": "INT. WRITING ROOM - NIGHT",
+        "order": 1,
+        "currentVersionId": "version_fixture_room_v1",
+        "status": "For Review",
+        "createdAt": "2026-05-31T12:00:00.000Z",
+        "updatedAt": "2026-05-31T12:00:00.000Z"
+      },
+      {
+        "sceneId": "scene_fixture_street",
+        "projectId": "project_fixture_basic",
+        "heading": "EXT. CITY STREET - MORNING",
+        "order": 2,
+        "currentVersionId": "version_fixture_street_v1",
+        "status": "Needs Rewrite",
+        "createdAt": "2026-05-31T12:00:00.000Z",
+        "updatedAt": "2026-05-31T12:00:00.000Z"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "versionId": "version_fixture_room_v1",
+      "sceneId": "scene_fixture_room",
+      "versionNumber": 1,
+      "text": "INT. WRITING ROOM - NIGHT\n\nA writer stares at a blank page. The cursor waits.",
+      "createdAt": "2026-05-31T12:00:00.000Z",
+      "isCurrent": true
+    },
+    {
+      "versionId": "version_fixture_street_v1",
+      "sceneId": "scene_fixture_street",
+      "versionNumber": 1,
+      "text": "EXT. CITY STREET - MORNING\n\nThe first light folds across the buildings.",
+      "createdAt": "2026-05-31T12:00:00.000Z",
+      "isCurrent": true
+    }
+  ],
+  "notes": [
+    {
+      "noteId": "note_fixture_cursor",
+      "sceneId": "scene_fixture_room",
+      "versionId": "version_fixture_room_v1",
+      "selectedText": "cursor waits",
+      "rangeStart": 70,
+      "rangeEnd": 82,
+      "noteText": "Consider making this image more active.",
+      "noteType": "Visual Idea",
+      "priority": "Medium",
+      "resolved": false,
+      "createdAt": "2026-05-31T12:00:00.000Z",
+      "updatedAt": "2026-05-31T12:00:00.000Z"
+    }
+  ],
+  "highlights": [
+    {
+      "highlightId": "highlight_fixture_cursor",
+      "sceneId": "scene_fixture_room",
+      "versionId": "version_fixture_room_v1",
+      "selectedText": "cursor waits",
+      "rangeStart": 70,
+      "rangeEnd": 82,
+      "color": "#f7d95c",
+      "hasNote": true,
+      "noteId": "note_fixture_cursor"
+    }
+  ],
+  "tasks": [
+    {
+      "taskId": "task_fixture_room",
+      "sceneId": "scene_fixture_room",
+      "sourceVersionId": "version_fixture_room_v1",
+      "linkedNoteIds": ["note_fixture_cursor"],
+      "priority": "Medium",
+      "status": "Open",
+      "createdAt": "2026-05-31T12:00:00.000Z"
+    }
+  ],
+  "sync": {
+    "provider": "local"
+  }
+}

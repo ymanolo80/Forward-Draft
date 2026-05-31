@@ -11,6 +11,7 @@ import { emptyData, loadData, saveData } from "./lib/storage";
 import type { AppData, AppMode, CoverPage, FadeTiming, FontFamilyChoice, FontSettings, Project, VisibilityRule, WritingMode } from "./types";
 
 type ThemeMode = "system" | "light" | "dark";
+const SCENE_LIST_TOGGLE_EVENT = "forwarddraft:toggle-scene-list";
 
 const fontFamilyMap: Record<FontFamilyChoice, string> = {
   screenplay: '"Courier Prime", "Courier New", Courier, monospace',
@@ -61,6 +62,9 @@ export function App() {
     family: "screenplay",
     size: 16,
     lineHeight: 1.6,
+    bold: false,
+    italic: false,
+    underline: false,
   });
   const optionsRef = useRef<HTMLDetailsElement>(null);
 
@@ -159,7 +163,12 @@ export function App() {
     "--draft-font-family": fontFamilyMap[fontSettings.family],
     "--draft-font-size": `${fontSettings.size}px`,
     "--draft-line-height": String(fontSettings.lineHeight),
+    "--draft-font-weight": fontSettings.bold ? "800" : "400",
+    "--draft-font-style": fontSettings.italic ? "italic" : "normal",
+    "--draft-text-decoration": fontSettings.underline ? "underline" : "none",
   } as CSSProperties;
+  const hasSceneListToggle = Boolean(activeProject && (mode === "review" || mode === "rewrite"));
+  const sceneListLabel = activeProject?.writingMode === "freewrite" ? "Chapters" : "Scenes";
 
   const createNew = (writingMode: WritingMode = "script") => {
     const createdAt = nowIso();
@@ -358,7 +367,19 @@ export function App() {
     <div className={`app mode-${mode}`} style={appStyle}>
       <header className="global-topbar">
         <div className="topbar-project">
-          <strong>Forward Draft</strong>
+          {hasSceneListToggle ? (
+            <button
+              className="topbar-pane-toggle"
+              onClick={() => window.dispatchEvent(new Event(SCENE_LIST_TOGGLE_EVENT))}
+              aria-label={`Toggle ${sceneListLabel}`}
+              title={`Toggle ${sceneListLabel}`}
+            >
+              <span className="sidebar-toggle-glyph" aria-hidden="true" />
+              <span>{sceneListLabel}</span>
+            </button>
+          ) : (
+            <strong>Forward Draft</strong>
+          )}
         </div>
 
         <div className="topbar-center">

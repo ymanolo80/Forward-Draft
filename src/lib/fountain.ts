@@ -176,6 +176,7 @@ export function importFountainProject(fileName: string, content: string): Founta
   const versions: SceneVersion[] = [];
   let currentLines: string[] = [];
   let currentHeading = "UNTITLED SCENE";
+  let hasSeenSceneHeading = false;
 
   const flushScene = () => {
     const text = currentLines.join("\n").trim();
@@ -210,12 +211,13 @@ export function importFountainProject(fileName: string, content: string): Founta
   for (const rawLine of scriptLines) {
     const line = rawLine.trimEnd();
     if (isFountainSceneHeading(line)) {
-      const preamble = scenes.length === 0 && currentLines.some((item) => item.trim())
+      const preamble = !hasSeenSceneHeading && currentLines.some((item) => item.trim())
         ? currentLines
         : [];
       if (preamble.length === 0) flushScene();
       currentHeading = cleanFountainSceneHeading(line);
       currentLines = preamble.length > 0 ? [currentHeading, "", ...preamble] : [currentHeading];
+      hasSeenSceneHeading = true;
       continue;
     }
     currentLines.push(line);

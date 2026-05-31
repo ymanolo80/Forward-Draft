@@ -328,6 +328,7 @@ export function WriteMode({
   const sectionName = project.writingMode === "script" ? "scene" : "chapter";
   const sortedScenes = [...project.scenes].sort((a, b) => a.order - b.order);
   const placementTargets = sortedScenes.filter((scene) => scene.source !== "draft");
+  const visibleScriptElements = scriptElements.filter((item) => item !== "Note" && item !== "Shot");
 
   return (
     <section className="mode-panel write-panel">
@@ -473,7 +474,7 @@ export function WriteMode({
             <section className="tool-section">
               <h3>Script Element</h3>
               <div className="element-grid" role="toolbar" aria-label="Screenplay element toolbar">
-                {scriptElements.map((item) => (
+                {visibleScriptElements.map((item) => (
                   <button
                     className={element === item ? "active" : ""}
                     key={item}

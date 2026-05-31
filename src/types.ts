@@ -139,4 +139,7 @@ export interface FontSettings {
   family: FontFamilyChoice;
   size: number;
   lineHeight: number;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
 }

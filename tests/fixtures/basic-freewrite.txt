@@ -1,0 +1,9 @@
+Chapter One
+
+The notebook opens on a quiet desk.
+
+The first paragraph should stay visible until a paragraph boundary changes.
+
+Chapter Two
+
+The second chapter gives the importer a separate unit to preserve.

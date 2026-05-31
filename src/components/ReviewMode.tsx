@@ -1,7 +1,9 @@
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { ToolFontControls } from "./ToolFontControls";
 import type { AppData, FontSettings, Highlight, Project, ReviewNote, Scene, SceneVersion } from "../types";
 import { createId, nowIso } from "../lib/ids";
+
+const SCENE_LIST_TOGGLE_EVENT = "forwarddraft:toggle-scene-list";
 
 interface ReviewModeProps {
   data: AppData;
@@ -104,6 +106,19 @@ function splitSceneText(text: string) {
   };
 }
 
+function splitChapterText(text: string, fallbackHeading: string) {
+  const headingEnd = text.indexOf("\n");
+  const firstLine = headingEnd < 0 ? text : text.slice(0, headingEnd);
+  if (firstLine.trim() === fallbackHeading.trim()) {
+    return {
+      heading: firstLine,
+      body: headingEnd < 0 ? "" : text.slice(headingEnd),
+      bodyOffset: headingEnd < 0 ? text.length : headingEnd,
+    };
+  }
+  return { heading: fallbackHeading, body: text, bodyOffset: 0 };
+}
+
 export function ReviewMode({
   data,
   project,
@@ -132,6 +147,18 @@ export function ReviewMode({
   const [activeNoteId, setActiveNoteId] = useState<string | undefined>();
   const [noteAnchor, setNoteAnchor] = useState<NoteAnchor | undefined>();
   const sceneRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  useEffect(() => {
+    const onToggleSceneList = () => {
+      if (window.matchMedia("(max-width: 1180px)").matches) {
+        setShowScenes(true);
+        return;
+      }
+      setScenePaneOpen((open) => !open);
+    };
+    window.addEventListener(SCENE_LIST_TOGGLE_EVENT, onToggleSceneList);
+    return () => window.removeEventListener(SCENE_LIST_TOGGLE_EVENT, onToggleSceneList);
+  }, []);
 
   const sortedScenes = [...project.scenes].sort((a, b) => a.order - b.order);
   const scene = sortedScenes.find((candidate) => candidate.sceneId === selectedSceneId) ?? sortedScenes[0];
@@ -365,14 +392,17 @@ export function ReviewMode({
           }}
         >
           {reordering && <span className="grab-handle" aria-hidden="true">::</span>}
-          <strong>
+          <strong className="scene-list-title">
             {project.writingMode === "script" ? (
               <>
-                {item.heading}
-                <span className="scene-number">#{item.order}</span>
+                <span className="scene-number">{item.order}</span>
+                <span className="scene-list-heading">{item.heading}</span>
               </>
             ) : (
-              `Chapter ${item.order}: ${item.heading}`
+              <>
+                <span className="scene-number">{item.order}</span>
+                <span className="scene-list-heading">{item.heading}</span>
+              </>
             )}
           </strong>
           <small>{item.status} · V{version?.versionNumber ?? 1} · {noteCount} notes</small>
@@ -390,16 +420,24 @@ export function ReviewMode({
     label: string,
   ) => {
     if (project.writingMode !== "script") {
+      const { heading, body, bodyOffset } = splitChapterText(version.text, item.heading);
       return (
-        <pre
-          className="read-only-script"
+        <div
+          className="read-only-script freewrite-display"
           onMouseUp={() => captureSelection(item, version)}
           onKeyUp={() => captureSelection(item, version)}
           tabIndex={0}
           aria-label={label}
         >
-          {applyAnnotations(version.text, itemHighlights, itemNotes, openNote)}
-        </pre>
+          <div className="freewrite-heading-line">
+            {applyAnnotations(heading, itemHighlights, itemNotes, openNote)}
+          </div>
+          {body && (
+            <pre className="freewrite-body-text">
+              {applyAnnotations(body, itemHighlights, itemNotes, openNote, bodyOffset)}
+            </pre>
+          )}
+        </div>
       );
     }
 
@@ -432,7 +470,7 @@ export function ReviewMode({
           {scenePaneOpen ? (
             <aside className="review-scene-pane">
               <header>
-                <strong>{sceneLabelPlural}</strong>
+                <strong>{sceneLabelPlural} List</strong>
                 <div className="scene-pane-actions">
                   <button
                     className={reordering ? "active" : ""}
@@ -440,14 +478,11 @@ export function ReviewMode({
                   >
                     {reordering ? "Done" : "Reorder"}
                   </button>
-                  <button onClick={() => setScenePaneOpen(false)}>Hide</button>
                 </div>
               </header>
               <div className={`scene-drawer-list ${reordering ? "is-reordering" : ""}`}>{sortedScenes.map(renderSceneButton)}</div>
             </aside>
-          ) : (
-            <button className="open-scenes-rail" onClick={() => setScenePaneOpen(true)}>{sceneLabelPlural}</button>
-          )}
+          ) : null}
 
           <div className={`review-stage ${reviewView === "scene" && compare && compareTarget ? "comparing" : ""}`}>
             {reviewView === "scene" ? (
@@ -537,9 +572,6 @@ export function ReviewMode({
                   )}
                 </>
               )}
-              <div className="tool-button-row">
-                <button className="mobile-scenes-button" onClick={() => setShowScenes(true)}>Open {sceneLabelPlural}</button>
-              </div>
             </section>
 
             <section className="tool-section">

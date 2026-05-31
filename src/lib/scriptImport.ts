@@ -100,6 +100,7 @@ function splitScriptSections(lines: string[]): ImportedSection[] {
   const sections: ImportedSection[] = [];
   let currentLines: string[] = [];
   let currentHeading = "UNTITLED SCENE";
+  let hasSeenSceneHeading = false;
 
   const flush = () => {
     const text = currentLines.join("\n").trim();
@@ -114,10 +115,11 @@ function splitScriptSections(lines: string[]): ImportedSection[] {
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
     if (isSceneHeading(line)) {
-      const preamble = sections.length === 0 && currentLines.some((item) => item.trim()) ? currentLines : [];
+      const preamble = !hasSeenSceneHeading && currentLines.some((item) => item.trim()) ? currentLines : [];
       if (preamble.length === 0) flush();
       currentHeading = cleanSceneHeading(line);
       currentLines = preamble.length > 0 ? [currentHeading, "", ...preamble] : [currentHeading];
+      hasSeenSceneHeading = true;
       continue;
     }
     currentLines.push(line);
@@ -250,7 +252,7 @@ export function importFdxProject(fileName: string, content: string): ImportedScr
   if (doc.querySelector("parsererror")) throw new Error("This Final Draft file could not be read as XML.");
 
   const titlePage = fdxTitlePage(doc, fileTitle(fileName));
-  const contentNode = doc.querySelector("Content");
+  const contentNode = Array.from(doc.querySelectorAll("Content")).find((node) => !node.closest("TitlePage"));
   const paragraphs = Array.from((contentNode ?? doc).querySelectorAll("Paragraph"))
     .filter((paragraph) => !paragraph.closest("TitlePage"))
     .map((paragraph) => ({
@@ -264,6 +266,7 @@ export function importFdxProject(fileName: string, content: string): ImportedScr
   const sections: ImportedSection[] = [];
   let currentLines: string[] = [];
   let currentHeading = "UNTITLED SCENE";
+  let hasSeenSceneHeading = false;
 
   const flush = () => {
     const text = currentLines.join("\n\n").trim();
@@ -278,10 +281,11 @@ export function importFdxProject(fileName: string, content: string): ImportedScr
   for (const paragraph of paragraphs) {
     const line = fdxElementLine(paragraph.type, paragraph.text);
     if (paragraph.type === "Scene Heading" || isSceneHeading(line)) {
-      const preamble = sections.length === 0 && currentLines.some((item) => item.trim()) ? currentLines : [];
+      const preamble = !hasSeenSceneHeading && currentLines.some((item) => item.trim()) ? currentLines : [];
       if (preamble.length === 0) flush();
       currentHeading = cleanSceneHeading(line);
       currentLines = preamble.length > 0 ? [currentHeading, ...preamble] : [currentHeading];
+      hasSeenSceneHeading = true;
       continue;
     }
     currentLines.push(line);

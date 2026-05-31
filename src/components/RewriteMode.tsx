@@ -3,6 +3,8 @@ import { ToolFontControls } from "./ToolFontControls";
 import type { AppData, FontSettings, Project, ReviewNote, Scene } from "../types";
 import { createId, nowIso } from "../lib/ids";
 
+const SCENE_LIST_TOGGLE_EVENT = "forwarddraft:toggle-scene-list";
+
 interface RewriteModeProps {
   data: AppData;
   project: Project;
@@ -171,6 +173,18 @@ export function RewriteMode({
     return () => media.removeEventListener("change", syncQueue);
   }, []);
 
+  useEffect(() => {
+    const onToggleSceneList = () => {
+      if (window.matchMedia("(max-width: 1180px)").matches) {
+        setQueueOpen(true);
+        return;
+      }
+      setQueueOpen((open) => !open);
+    };
+    window.addEventListener(SCENE_LIST_TOGGLE_EVENT, onToggleSceneList);
+    return () => window.removeEventListener(SCENE_LIST_TOGGLE_EVENT, onToggleSceneList);
+  }, []);
+
   const queue = useMemo(() => {
     const openTasks = data.tasks.filter((task) => task.status === "Open");
     return project.scenes
@@ -311,14 +325,20 @@ export function RewriteMode({
   return (
     <section className="mode-panel rewrite-panel">
       <div className={`mode-workspace rewrite-layout ${queueOpen ? "" : "queue-collapsed"}`}>
-        {queueOpen && (
+        {queueOpen ? (
           <aside className="rewrite-queue">
+            <header>
+              <strong>{sectionLabel}s List</strong>
+            </header>
             {queue.map((item) => {
               if (!item) return null;
               const selectedClass = item.scene.sceneId === selected?.scene.sceneId ? "selected" : "";
               return (
                 <button key={item.scene.sceneId} className={selectedClass} onClick={() => jumpTo(item.scene.sceneId)}>
-                  <strong>{project.writingMode === "script" ? `${item.scene.heading} #${item.scene.order}` : `Chapter ${item.scene.order}: ${item.scene.heading}`}</strong>
+                  <strong className="scene-list-title">
+                    <span className="scene-number">{item.scene.order}</span>
+                    <span className="scene-list-heading">{item.scene.heading}</span>
+                  </strong>
                   <small>
                     {item.scene.status} · V{item.version?.versionNumber ?? 1} · {item.notes.length} notes
                   </small>
@@ -326,7 +346,7 @@ export function RewriteMode({
               );
             })}
           </aside>
-        )}
+        ) : null}
         <main className="rewrite-main">
           {queue.length === 0 && <div className="empty-state">No rewrite {sectionLabel.toLowerCase()}s in the scenes list.</div>}
           {displayMode === "single" && selected && (
@@ -374,13 +394,6 @@ export function RewriteMode({
               <input name="rewrite-context" type="checkbox" checked={showContext} onChange={(event) => setShowContext(event.target.checked)} />
               Previous/next {sectionLabel.toLowerCase()}
             </label>
-          </section>
-
-          <section className="tool-section">
-            <h3>Scenes List</h3>
-            <button className="tool-wide-button" onClick={() => setQueueOpen((open) => !open)}>
-              {queueOpen ? "Hide Scenes List" : "Show Scenes List"}
-            </button>
           </section>
 
           {selected && (

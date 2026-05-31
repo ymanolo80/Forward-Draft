@@ -29,6 +29,35 @@ export function ToolFontControls({ fontSettings, setFontSettings }: ToolFontCont
           ))}
         </select>
       </label>
+      <div className="format-toggle-row" role="toolbar" aria-label="Text formatting">
+        <button
+          className={fontSettings.bold ? "active" : ""}
+          onClick={() => setFontSettings({ ...fontSettings, bold: !fontSettings.bold })}
+          type="button"
+          aria-pressed={fontSettings.bold}
+          title="Bold"
+        >
+          B
+        </button>
+        <button
+          className={fontSettings.italic ? "active" : ""}
+          onClick={() => setFontSettings({ ...fontSettings, italic: !fontSettings.italic })}
+          type="button"
+          aria-pressed={fontSettings.italic}
+          title="Italic"
+        >
+          I
+        </button>
+        <button
+          className={fontSettings.underline ? "active" : ""}
+          onClick={() => setFontSettings({ ...fontSettings, underline: !fontSettings.underline })}
+          type="button"
+          aria-pressed={fontSettings.underline}
+          title="Underline"
+        >
+          U
+        </button>
+      </div>
       <div className="font-control-row">
         <label>
           Size
