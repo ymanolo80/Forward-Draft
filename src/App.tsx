@@ -5,7 +5,7 @@ import { WriteMode } from "./components/WriteMode";
 import { exportChangesPdf, exportFountainFile, exportFullPdf, exportProjectFile, exportText } from "./lib/exports";
 import { readTextFile } from "./lib/fileService";
 import { createId, nowIso } from "./lib/ids";
-import { importFountainIntoData, openProjectFileIntoData } from "./lib/projectIO";
+import { importFdxIntoData, importFountainIntoData, importTxtIntoData, openProjectFileIntoData } from "./lib/projectIO";
 import { createProject } from "./lib/seed";
 import { emptyData, loadData, saveData } from "./lib/storage";
 import type { AppData, AppMode, CoverPage, FadeTiming, FontFamilyChoice, FontSettings, Project, VisibilityRule, WritingMode } from "./types";
@@ -319,6 +319,30 @@ export function App() {
     }
   };
 
+  const importTxtFile = async (file?: File) => {
+    if (!file) return;
+    try {
+      const source = await readTextFile(file);
+      const result = importTxtIntoData(data, source);
+      setData(result.data);
+      setMode("review");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "This TXT file could not be imported.");
+    }
+  };
+
+  const importFdxFile = async (file?: File) => {
+    if (!file) return;
+    try {
+      const source = await readTextFile(file);
+      const result = importFdxIntoData(data, source);
+      setData(result.data);
+      setMode("review");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "This Final Draft file could not be imported.");
+    }
+  };
+
   return (
     <div className={`app mode-${mode}`} style={appStyle}>
       <header className="global-topbar">
@@ -403,6 +427,32 @@ export function App() {
                       accept=".fountain,text/plain"
                       onChange={(event) => {
                         importFountainFile(event.target.files?.[0]);
+                        event.currentTarget.value = "";
+                        setOptionsOpen(false);
+                      }}
+                    />
+                  </label>
+                  <label className="menu-file">
+                    Import TXT Script
+                    <input
+                      name="import-txt"
+                      type="file"
+                      accept=".txt,text/plain"
+                      onChange={(event) => {
+                        importTxtFile(event.target.files?.[0]);
+                        event.currentTarget.value = "";
+                        setOptionsOpen(false);
+                      }}
+                    />
+                  </label>
+                  <label className="menu-file">
+                    Import Final Draft
+                    <input
+                      name="import-fdx"
+                      type="file"
+                      accept=".fdx,.xml,application/xml,text/xml"
+                      onChange={(event) => {
+                        importFdxFile(event.target.files?.[0]);
                         event.currentTarget.value = "";
                         setOptionsOpen(false);
                       }}

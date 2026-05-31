@@ -1,6 +1,7 @@
 import type { AppData, Project } from "../types";
 import { importFountainProject } from "./fountain";
 import { appendProjectFileDocument, parseProjectFileText, projectTitleFromFileName } from "./projectFile";
+import { importFdxProject, importTxtProject, type ImportedScriptProject } from "./scriptImport";
 
 export interface TextFileSource {
   name: string;
@@ -43,6 +44,18 @@ export function openProjectFileIntoData(data: AppData, source: TextFileSource): 
 
 export function importFountainIntoData(data: AppData, source: TextFileSource): ImportScriptResult {
   const imported = importFountainProject(source.name, source.text);
+  return appendImportedScript(data, imported);
+}
+
+export function importTxtIntoData(data: AppData, source: TextFileSource): ImportScriptResult {
+  return appendImportedScript(data, importTxtProject(source.name, source.text));
+}
+
+export function importFdxIntoData(data: AppData, source: TextFileSource): ImportScriptResult {
+  return appendImportedScript(data, importFdxProject(source.name, source.text));
+}
+
+function appendImportedScript(data: AppData, imported: ImportedScriptProject): ImportScriptResult {
   const title = uniqueProjectTitle(imported.project.title, data);
   const project: Project = {
     ...imported.project,
