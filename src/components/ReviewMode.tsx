@@ -1,7 +1,11 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ToolFontControls } from "./ToolFontControls";
+import { InlineFountainText } from "./InlineFountainText";
 import type { AppData, FontSettings, Highlight, Project, ReviewNote, Scene, SceneVersion } from "../types";
 import { createId, nowIso } from "../lib/ids";
+import { selectedTextRange } from "../lib/textSelection";
+import { elementClass } from "../lib/fountain";
+import { parseScreenplayText } from "../lib/screenplay";
 
 const SCENE_LIST_TOGGLE_EVENT = "forwarddraft:toggle-scene-list";
 
@@ -59,7 +63,7 @@ function applyAnnotations(
     const rangeStart = Math.max(0, annotation.rangeStart - offset);
     const rangeEnd = Math.min(text.length, annotation.rangeEnd - offset);
     if (rangeStart < cursor) return;
-    parts.push(text.slice(cursor, rangeStart));
+    parts.push(<InlineFountainText key={`plain-${cursor}-${rangeStart}`} text={text.slice(cursor, rangeStart)} />);
     const noteId = "noteId" in annotation ? annotation.noteId : annotation.noteId;
     parts.push(
       <mark
@@ -72,10 +76,11 @@ function applyAnnotations(
           onOpenNote(noteId, { x: rect.right, y: rect.top + rect.height / 2 });
         }}
       >
-        {text.slice(rangeStart, rangeEnd)}
+        <InlineFountainText text={text.slice(rangeStart, rangeEnd)} />
         {noteId && (
           <button
             className="note-pin"
+            data-selection-ignore="true"
             onClick={(event) => {
               event.stopPropagation();
               const rect = event.currentTarget.getBoundingClientRect();
@@ -92,18 +97,8 @@ function applyAnnotations(
     cursor = rangeEnd;
   });
 
-  parts.push(text.slice(cursor));
+  parts.push(<InlineFountainText key={`plain-${cursor}-${text.length}`} text={text.slice(cursor)} />);
   return parts;
-}
-
-function splitSceneText(text: string) {
-  const headingEnd = text.indexOf("\n");
-  if (headingEnd < 0) return { heading: text, body: "", bodyOffset: text.length };
-  return {
-    heading: text.slice(0, headingEnd),
-    body: text.slice(headingEnd),
-    bodyOffset: headingEnd,
-  };
 }
 
 function splitChapterText(text: string, fallbackHeading: string) {
@@ -187,23 +182,18 @@ export function ReviewMode({
     });
   };
 
-  const captureSelection = (targetScene: Scene, targetVersion: SceneVersion) => {
-    const selectedText = window.getSelection()?.toString() ?? "";
-    if (!selectedText.trim()) {
-      setSelection(undefined);
-      return;
-    }
-    const rangeStart = targetVersion.text.indexOf(selectedText);
-    if (rangeStart < 0) {
+  const captureSelection = (targetScene: Scene, targetVersion: SceneVersion, root: HTMLElement) => {
+    const selected = selectedTextRange(root, targetVersion.text);
+    if (!selected) {
       setSelection(undefined);
       return;
     }
     setSelection({
-      text: selectedText,
+      text: selected.text,
       sceneId: targetScene.sceneId,
       versionId: targetVersion.versionId,
-      rangeStart,
-      rangeEnd: rangeStart + selectedText.length,
+      rangeStart: selected.rangeStart,
+      rangeEnd: selected.rangeEnd,
     });
     setSelectedSceneId(targetScene.sceneId);
   };
@@ -424,16 +414,16 @@ export function ReviewMode({
       return (
         <div
           className="read-only-script freewrite-display"
-          onMouseUp={() => captureSelection(item, version)}
-          onKeyUp={() => captureSelection(item, version)}
+          onMouseUp={(event) => captureSelection(item, version, event.currentTarget)}
+          onKeyUp={(event) => captureSelection(item, version, event.currentTarget)}
           tabIndex={0}
           aria-label={label}
         >
-          <div className="freewrite-heading-line">
+          <div className="freewrite-heading-line" data-script-offset="0">
             {applyAnnotations(heading, itemHighlights, itemNotes, openNote)}
           </div>
           {body && (
-            <pre className="freewrite-body-text">
+            <pre className="freewrite-body-text" data-script-offset={bodyOffset}>
               {applyAnnotations(body, itemHighlights, itemNotes, openNote, bodyOffset)}
             </pre>
           )}
@@ -441,24 +431,40 @@ export function ReviewMode({
       );
     }
 
-    const { heading, body, bodyOffset } = splitSceneText(version.text);
+    const screenplayBlocks = parseScreenplayText(version.text);
+    const headingBlock = screenplayBlocks.find((block) => block.element === "Scene Heading");
+    const bodyBlocks = headingBlock ? screenplayBlocks.filter((block) => block !== headingBlock) : screenplayBlocks;
     return (
       <div
         className="read-only-script script-display"
-        onMouseUp={() => captureSelection(item, version)}
-        onKeyUp={() => captureSelection(item, version)}
+        onMouseUp={(event) => captureSelection(item, version, event.currentTarget)}
+        onKeyUp={(event) => captureSelection(item, version, event.currentTarget)}
         tabIndex={0}
         aria-label={label}
       >
         <div className="screenplay-heading-line">
-          <span className="screenplay-scene-number">{item.order}</span>
-          <span>{heading}</span>
+          <span className="screenplay-scene-number" data-selection-ignore="true">{item.order}</span>
+          <span data-script-offset={headingBlock?.rangeStart ?? 0}>
+            {applyAnnotations(
+              headingBlock?.text ?? item.heading,
+              itemHighlights,
+              itemNotes,
+              openNote,
+              headingBlock?.rangeStart ?? 0,
+            )}
+          </span>
         </div>
-        {body && (
-          <pre className="script-body-text">
-            {applyAnnotations(body, itemHighlights, itemNotes, openNote, bodyOffset)}
-          </pre>
-        )}
+        <div className="screenplay-blocks script-body-text">
+          {bodyBlocks.map((block) => (
+            <div
+              className={`screenplay-block ${elementClass(block.element)} ${block.hasGapBefore ? "has-gap" : ""}`}
+              data-script-offset={block.rangeStart}
+              key={`${block.rangeStart}-${block.element}`}
+            >
+              {applyAnnotations(block.text, itemHighlights, itemNotes, openNote, block.rangeStart)}
+            </div>
+          ))}
+        </div>
       </div>
     );
   };

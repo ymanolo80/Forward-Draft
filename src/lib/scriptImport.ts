@@ -11,6 +11,11 @@ interface ImportedSection {
   text: string;
 }
 
+interface FdxParagraph {
+  type: string;
+  text: string;
+}
+
 const sceneHeadingPattern =
   /^\s*(?:(?:INT|EXT|EST|I\/E|INT\/EXT|EXT\/INT|INT\.\/EXT|EXT\.\/INT)[\s./]|\.{1}(?!\.)\S)/i;
 
@@ -231,6 +236,20 @@ function fdxElementLine(type: string, text: string) {
   return text;
 }
 
+function fdxParagraphsToText(paragraphs: FdxParagraph[]) {
+  const lines: string[] = [];
+  paragraphs.forEach((paragraph, index) => {
+    const previousType = paragraphs[index - 1]?.type;
+    const continuesDialogue =
+      (previousType === "Character" && (paragraph.type === "Parenthetical" || paragraph.type === "Dialogue")) ||
+      (previousType === "Parenthetical" && paragraph.type === "Dialogue") ||
+      (previousType === "Dialogue" && paragraph.type === "Dialogue");
+    if (lines.length > 0 && !continuesDialogue) lines.push("");
+    lines.push(fdxElementLine(paragraph.type, paragraph.text));
+  });
+  return lines.join("\n").trim();
+}
+
 function fdxTitlePage(doc: XMLDocument, fallbackTitle: string) {
   const titlePage = doc.querySelector("TitlePage");
   if (!titlePage) return { title: fallbackTitle, writtenBy: "" };
@@ -264,38 +283,38 @@ export function importFdxProject(fileName: string, content: string): ImportedScr
   if (paragraphs.length === 0) throw new Error("This Final Draft file does not contain script text.");
 
   const sections: ImportedSection[] = [];
-  let currentLines: string[] = [];
+  let currentParagraphs: FdxParagraph[] = [];
   let currentHeading = "UNTITLED SCENE";
   let hasSeenSceneHeading = false;
 
   const flush = () => {
-    const text = currentLines.join("\n\n").trim();
+    const text = fdxParagraphsToText(currentParagraphs);
     if (!text) {
-      currentLines = [];
+      currentParagraphs = [];
       return;
     }
     sections.push({ heading: currentHeading, text });
-    currentLines = [];
+    currentParagraphs = [];
   };
 
   for (const paragraph of paragraphs) {
     const line = fdxElementLine(paragraph.type, paragraph.text);
     if (paragraph.type === "Scene Heading" || isSceneHeading(line)) {
-      const preamble = !hasSeenSceneHeading && currentLines.some((item) => item.trim()) ? currentLines : [];
+      const preamble = !hasSeenSceneHeading && currentParagraphs.some((item) => item.text.trim()) ? currentParagraphs : [];
       if (preamble.length === 0) flush();
       currentHeading = cleanSceneHeading(line);
-      currentLines = preamble.length > 0 ? [currentHeading, ...preamble] : [currentHeading];
+      currentParagraphs = [{ type: "Scene Heading", text: currentHeading }, ...preamble];
       hasSeenSceneHeading = true;
       continue;
     }
-    currentLines.push(line);
+    currentParagraphs.push(paragraph);
   }
 
   flush();
   if (sections.length === 0) {
     sections.push({
       heading: "UNTITLED SCENE",
-      text: paragraphs.map((paragraph) => fdxElementLine(paragraph.type, paragraph.text)).join("\n\n"),
+      text: fdxParagraphsToText(paragraphs),
     });
   }
 

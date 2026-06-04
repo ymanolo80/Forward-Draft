@@ -1,7 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ToolFontControls } from "./ToolFontControls";
-import type { AppData, FontSettings, Project, ReviewNote, Scene } from "../types";
+import { InlineFountainText } from "./InlineFountainText";
+import { VisualScreenplayEditor, type VisualScreenplayEditorHandle } from "./VisualScreenplayEditor";
+import type { AppData, FontSettings, Project, ReviewNote, Scene, ScriptElement } from "../types";
 import { createId, nowIso } from "../lib/ids";
+import { elementClass, scriptElements } from "../lib/fountain";
+import { parseScreenplayText, type ScreenplayTextBlock } from "../lib/screenplay";
+import { screenplayElementSuggestions } from "../lib/scriptSuggestions";
 
 const SCENE_LIST_TOGGLE_EVENT = "forwarddraft:toggle-scene-list";
 
@@ -20,22 +25,35 @@ interface RewriteModeProps {
 
 type DisplayMode = "single" | "all";
 
-function highlightText(text: string, notes: ReviewNote[]) {
-  let cursor = 0;
+function highlightBlock(block: ScreenplayTextBlock, notes: ReviewNote[]) {
+  let cursor = block.rangeStart;
   const parts: React.ReactNode[] = [];
   notes
     .filter((note) => !note.resolved && note.selectedText)
+    .filter((note) => note.rangeEnd > block.rangeStart && note.rangeStart < block.rangeEnd)
     .sort((a, b) => a.rangeStart - b.rangeStart)
     .forEach((note) => {
-      parts.push(text.slice(cursor, note.rangeStart));
+      const rangeStart = Math.max(note.rangeStart, block.rangeStart);
+      const rangeEnd = Math.min(note.rangeEnd, block.rangeEnd);
+      parts.push(
+        <InlineFountainText
+          key={`plain-${cursor}-${rangeStart}`}
+          text={block.text.slice(cursor - block.rangeStart, rangeStart - block.rangeStart)}
+        />,
+      );
       parts.push(
         <mark className="rewrite-highlight" data-rewrite-note-id={note.noteId} key={note.noteId}>
-          {text.slice(note.rangeStart, note.rangeEnd)}
+          <InlineFountainText text={block.text.slice(rangeStart - block.rangeStart, rangeEnd - block.rangeStart)} />
         </mark>,
       );
-      cursor = note.rangeEnd;
+      cursor = rangeEnd;
     });
-  parts.push(text.slice(cursor));
+  parts.push(
+    <InlineFountainText
+      key={`plain-${cursor}-${block.rangeEnd}`}
+      text={block.text.slice(cursor - block.rangeStart)}
+    />,
+  );
   return parts;
 }
 
@@ -50,6 +68,7 @@ function RewriteSource({ text, notes, showNotes }: { text: string; notes: Review
     () => notes.filter((note) => !note.resolved && note.selectedText).sort((a, b) => a.rangeStart - b.rangeStart),
     [notes],
   );
+  const screenplayBlocks = useMemo(() => parseScreenplayText(text), [text]);
 
   useLayoutEffect(() => {
     const source = sourceRef.current;
@@ -65,7 +84,7 @@ function RewriteSource({ text, notes, showNotes }: { text: string; notes: Review
       frame = window.requestAnimationFrame(() => {
         const sourceRect = source.getBoundingClientRect();
         const rail = source.querySelector<HTMLElement>(".rewrite-note-rail");
-        const script = source.querySelector<HTMLElement>("pre");
+        const script = source.querySelector<HTMLElement>(".rewrite-screenplay-source");
         if (!rail || !script) return;
 
         let lastBottom = 0;
@@ -115,7 +134,16 @@ function RewriteSource({ text, notes, showNotes }: { text: string; notes: Review
 
   return (
     <div className={`rewrite-source rewrite-source-connected ${showNotes ? "" : "notes-hidden"}`} ref={sourceRef}>
-      <pre>{highlightText(text, visibleNotes)}</pre>
+      <div className="screenplay-blocks rewrite-screenplay-source">
+        {screenplayBlocks.map((block) => (
+          <div
+            className={`screenplay-block ${elementClass(block.element)} ${block.hasGapBefore ? "has-gap" : ""}`}
+            key={`${block.rangeStart}-${block.element}`}
+          >
+            {highlightBlock(block, visibleNotes)}
+          </div>
+        ))}
+      </div>
       {showNotes && (
         <>
           <svg className="rewrite-connectors" aria-hidden="true">
@@ -161,7 +189,10 @@ export function RewriteMode({
   const [queueOpen, setQueueOpen] = useState(() => !window.matchMedia("(max-width: 720px)").matches);
   const [selectedSceneId, setSelectedSceneId] = useState(project.scenes[0]?.sceneId);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [rewriteElement, setRewriteElement] = useState<ScriptElement>("Action");
+  const [activeRewriteLine, setActiveRewriteLine] = useState<{ sceneId: string; text: string }>();
   const refs = useRef<Record<string, HTMLElement | null>>({});
+  const editorRefs = useRef<Record<string, VisualScreenplayEditorHandle | null>>({});
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 720px)");
@@ -213,6 +244,7 @@ export function RewriteMode({
   const selected = queue.find((item) => item?.scene.sceneId === selectedSceneId) ?? queue[0];
   const sectionLabel = project.writingMode === "freewrite" ? "Chapter" : "Scene";
   const selectedDraftText = selected ? drafts[selected.scene.sceneId] ?? selected.version?.text ?? "" : "";
+  const visibleScriptElements = scriptElements.filter((item) => item !== "Note" && item !== "Shot");
 
   const markDone = (scene: Scene, text: string) => {
     const oldVersion = data.versions.find((version) => version.versionId === scene.currentVersionId);
@@ -260,6 +292,21 @@ export function RewriteMode({
     refs.current[sceneId]?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  const chooseRewriteElement = (element: ScriptElement) => {
+    setRewriteElement(element);
+    if (!selected) return;
+    editorRefs.current[selected.scene.sceneId]?.applyElement(element);
+  };
+
+  const replaceRewriteLine = (sceneId: string, suggestion: string) => {
+    editorRefs.current[sceneId]?.replaceActiveLine(suggestion);
+  };
+
+  const formatRewriteSelection = (marker: string) => {
+    if (!selected) return;
+    editorRefs.current[selected.scene.sceneId]?.formatSelection(marker);
+  };
+
   const renderRewriteScene = (item: NonNullable<(typeof queue)[number]>, compact = false) => {
     const { scene, version, notes } = item;
     const text = drafts[scene.sceneId] ?? version?.text ?? "";
@@ -267,6 +314,11 @@ export function RewriteMode({
     const next = project.scenes.find((candidate) => candidate.order === scene.order + 1);
     const previousVersion = previous ? data.versions.find((candidate) => candidate.versionId === previous.currentVersionId) : undefined;
     const nextVersion = next ? data.versions.find((candidate) => candidate.versionId === next.currentVersionId) : undefined;
+    const activeLine = activeRewriteLine?.sceneId === scene.sceneId ? activeRewriteLine.text : "";
+    const suggestions =
+      project.writingMode === "script" && scene.sceneId === selected?.scene.sceneId
+        ? screenplayElementSuggestions(rewriteElement, activeLine, project, data.versions)
+        : [];
 
     return (
       <article
@@ -305,13 +357,25 @@ export function RewriteMode({
         {showReviewedScene && (
           <RewriteSource text={version?.text ?? ""} notes={notes} showNotes={showReviewedNotes} />
         )}
-        <textarea
-          className="rewrite-editor"
-          name={`rewrite-${scene.sceneId}`}
-          value={text}
-          onChange={(event) => setDrafts({ ...drafts, [scene.sceneId]: event.target.value })}
-          spellCheck
+        <VisualScreenplayEditor
+          currentElement={rewriteElement}
+          onActiveLineChange={(lineText) => setActiveRewriteLine({ sceneId: scene.sceneId, text: lineText })}
+          onChange={(nextText) => setDrafts((current) => ({ ...current, [scene.sceneId]: nextText }))}
+          onElementChange={setRewriteElement}
+          ref={(editor) => {
+            editorRefs.current[scene.sceneId] = editor;
+          }}
+          text={text}
         />
+        {suggestions.length > 0 && (
+          <div className="scene-autocomplete rewrite-autocomplete" aria-label={`${rewriteElement} suggestions`}>
+            {suggestions.map((suggestion) => (
+              <button key={suggestion} onClick={() => replaceRewriteLine(scene.sceneId, suggestion)}>
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
         {showContext && nextVersion && !compact && (
           <aside className="context-scene-block next-context">
             <strong>Next {sectionLabel}</strong>
@@ -417,7 +481,30 @@ export function RewriteMode({
             </section>
           )}
 
-          <ToolFontControls fontSettings={fontSettings} setFontSettings={setFontSettings} />
+          {project.writingMode === "script" && (
+            <section className="tool-section">
+              <h3>Script Element</h3>
+              <div className="element-grid" role="toolbar" aria-label="Rewrite screenplay element toolbar">
+                {visibleScriptElements.map((item) => (
+                  <button
+                    className={rewriteElement === item ? "active" : ""}
+                    key={item}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => chooseRewriteElement(item)}
+                    title={`Format current line as ${item}`}
+                  >
+                    {item === "Scene Heading" ? "Heading" : item}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <ToolFontControls
+            fontSettings={fontSettings}
+            setFontSettings={setFontSettings}
+            onFormatSelection={formatRewriteSelection}
+          />
 
           <section className="tool-section">
             <h3>Undo / Redo</h3>

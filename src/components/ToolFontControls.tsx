@@ -3,6 +3,7 @@ import type { FontFamilyChoice, FontSettings } from "../types";
 interface ToolFontControlsProps {
   fontSettings: FontSettings;
   setFontSettings: (next: FontSettings) => void;
+  onFormatSelection?: (marker: string) => void;
 }
 
 const familyOptions: { value: FontFamilyChoice; label: string }[] = [
@@ -11,7 +12,8 @@ const familyOptions: { value: FontFamilyChoice; label: string }[] = [
   { value: "serif", label: "Serif" },
 ];
 
-export function ToolFontControls({ fontSettings, setFontSettings }: ToolFontControlsProps) {
+export function ToolFontControls({ fontSettings, setFontSettings, onFormatSelection }: ToolFontControlsProps) {
+  const selectionTitle = onFormatSelection ? undefined : "Select editable text in Write or Rewrite to format it";
   return (
     <section className="tool-section">
       <h3>Text Style</h3>
@@ -31,29 +33,29 @@ export function ToolFontControls({ fontSettings, setFontSettings }: ToolFontCont
       </label>
       <div className="format-toggle-row" role="toolbar" aria-label="Text formatting">
         <button
-          className={fontSettings.bold ? "active" : ""}
-          onClick={() => setFontSettings({ ...fontSettings, bold: !fontSettings.bold })}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onFormatSelection?.("**")}
           type="button"
-          aria-pressed={fontSettings.bold}
-          title="Bold"
+          disabled={!onFormatSelection}
+          title={selectionTitle ?? "Bold selected text"}
         >
           B
         </button>
         <button
-          className={fontSettings.italic ? "active" : ""}
-          onClick={() => setFontSettings({ ...fontSettings, italic: !fontSettings.italic })}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onFormatSelection?.("*")}
           type="button"
-          aria-pressed={fontSettings.italic}
-          title="Italic"
+          disabled={!onFormatSelection}
+          title={selectionTitle ?? "Italicize selected text"}
         >
           I
         </button>
         <button
-          className={fontSettings.underline ? "active" : ""}
-          onClick={() => setFontSettings({ ...fontSettings, underline: !fontSettings.underline })}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onFormatSelection?.("_")}
           type="button"
-          aria-pressed={fontSettings.underline}
-          title="Underline"
+          disabled={!onFormatSelection}
+          title={selectionTitle ?? "Underline selected text"}
         >
           U
         </button>

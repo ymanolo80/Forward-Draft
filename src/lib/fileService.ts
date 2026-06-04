@@ -1,4 +1,4 @@
-export type FileSaveResult = "saved" | "shared" | "downloaded" | "cancelled";
+export type FileSaveResult = "saved" | "downloaded" | "cancelled";
 
 export interface HostReadableFile {
   name: string;
@@ -28,11 +28,6 @@ type SaveFilePicker = (options: {
     close: () => Promise<void>;
   }>;
 }>;
-
-type FileShareNavigator = Navigator & {
-  canShare?: (data: { files: File[]; title?: string }) => boolean;
-  share?: (data: { files: File[]; title?: string }) => Promise<void>;
-};
 
 function blobFor(file: PortableFile) {
   return file.content instanceof Blob ? file.content : new Blob([file.content], { type: file.mimeType });
@@ -78,28 +73,9 @@ async function saveWithBrowserPicker(file: PortableFile, options: SavePortableFi
   }
 }
 
-async function shareFromBrowser(file: PortableFile): Promise<"shared" | "cancelled" | false> {
-  const shareFile = new File([blobFor(file)], file.name, { type: file.mimeType });
-  const shareData = { files: [shareFile], title: file.name };
-  const shareNavigator = navigator as FileShareNavigator;
-  if (!shareNavigator.share || !shareNavigator.canShare?.(shareData)) return false;
-
-  try {
-    await shareNavigator.share(shareData);
-    return "shared";
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
-    console.error("File share failed", error);
-    return false;
-  }
-}
-
 export async function savePortableFile(file: PortableFile, options: SavePortableFileOptions): Promise<FileSaveResult> {
   const savedWithPicker = await saveWithBrowserPicker(file, options);
   if (savedWithPicker) return savedWithPicker;
-
-  const shared = await shareFromBrowser(file);
-  if (shared) return shared;
 
   downloadInBrowser(file);
   return "downloaded";

@@ -654,15 +654,19 @@ p {
   text-align: center;
 }
 
-.script-line.character,
-.script-line.dialogue,
-.script-line.parenthetical {
-  width: min(100%, 430px);
+.script-line.character {
+  width: min(100%, 260px);
+  margin-inline: auto;
+}
+
+.script-line.dialogue {
+  width: min(100%, 350px);
   margin-inline: auto;
 }
 
 .script-line.parenthetical {
-  width: min(100%, 310px);
+  width: min(100%, 270px);
+  margin-inline: auto;
 }
 
 .script-line.note {
@@ -673,7 +677,8 @@ p {
   margin-top: 12px;
 }
 
-.active-writing-line textarea {
+.active-writing-line textarea,
+.visual-inline-editor {
   width: 100%;
   min-height: 28px;
   resize: none;
@@ -686,6 +691,20 @@ p {
   font: inherit;
   line-height: inherit;
   text-decoration: var(--draft-text-decoration);
+}
+
+.visual-inline-editor {
+  white-space: pre-wrap;
+}
+
+.visual-inline-editor:focus {
+  outline: 0;
+}
+
+.visual-inline-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #a6afb9;
+  pointer-events: none;
 }
 
 .active-writing-line textarea::placeholder {
@@ -1052,10 +1071,50 @@ pre {
 .screenplay-scene-number {
   color: #4d5662;
   text-align: right;
+  user-select: none;
 }
 
 .script-body-text {
   min-height: 0;
+}
+
+.screenplay-blocks {
+  display: grid;
+  align-content: start;
+}
+
+.screenplay-block {
+  min-width: 0;
+  white-space: pre-wrap;
+}
+
+.screenplay-block.has-gap {
+  margin-top: 1.15em;
+}
+
+.screenplay-block.scene-heading,
+.screenplay-block.character,
+.screenplay-block.transition {
+  text-transform: uppercase;
+}
+
+.screenplay-block.character {
+  width: min(100%, 260px);
+  margin-inline: auto;
+}
+
+.screenplay-block.dialogue {
+  width: min(100%, 350px);
+  margin-inline: auto;
+}
+
+.screenplay-block.parenthetical {
+  width: min(100%, 270px);
+  margin-inline: auto;
+}
+
+.screenplay-block.transition {
+  text-align: right;
 }
 
 .script-page-meta {
@@ -1558,7 +1617,7 @@ mark {
   grid-template-columns: 1fr;
 }
 
-.rewrite-source pre,
+.rewrite-screenplay-source,
 .context-scene-block {
   border: 1px solid var(--soft-line);
   border-radius: 7px;
@@ -1566,7 +1625,7 @@ mark {
   padding: 14px;
 }
 
-.rewrite-source pre,
+.rewrite-screenplay-source,
 .rewrite-note-rail {
   position: relative;
   z-index: 2;
@@ -1668,6 +1727,34 @@ mark {
   font-style: var(--draft-font-style);
   font-weight: var(--draft-font-weight);
   text-decoration: var(--draft-text-decoration);
+}
+
+.rewrite-visual-editor {
+  display: grid;
+  align-content: start;
+  gap: 0;
+  outline: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.rewrite-visual-line {
+  min-height: calc(var(--draft-font-size) * var(--draft-line-height));
+  outline: 0;
+}
+
+.rewrite-visual-line.blank-line {
+  min-height: calc(var(--draft-font-size) * 0.9);
+}
+
+.rewrite-visual-line:focus,
+.rewrite-visual-line:focus-visible {
+  outline: 0;
+}
+
+.rewrite-visual-editor:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .rewrite-card > .primary,
@@ -1859,6 +1946,9 @@ mark {
   --script-text: #171615;
   --script-muted: #7d858f;
   --script-note: #6b5f42;
+  --context-background: #e2e6ec;
+  --context-border: #b8c1cc;
+  --context-text: #4f5864;
   --highlight: #fff08a;
   --note: #fff7d6;
   --green: #248a3d;
@@ -1899,6 +1989,9 @@ mark {
     --script-text: #f4f1eb;
     --script-muted: #8d919c;
     --script-note: #d7c781;
+    --context-background: #121318;
+    --context-border: rgba(235, 235, 245, 0.24);
+    --context-text: #a6a6ad;
     --highlight: #8f761b;
     --note: #332b18;
     --green: #30d158;
@@ -1953,6 +2046,9 @@ mark {
   --script-text: #f4f1eb;
   --script-muted: #8d919c;
   --script-note: #d7c781;
+  --context-background: #121318;
+  --context-border: rgba(235, 235, 245, 0.24);
+  --context-text: #a6a6ad;
   --highlight: #8f761b;
   --note: #332b18;
   --green: #30d158;
@@ -2455,8 +2551,23 @@ mark {
 
 .previous-context,
 .next-context {
-  border-color: var(--hairline);
-  background: color-mix(in srgb, var(--panel) 82%, var(--app));
+  border-color: var(--context-border);
+  border-left-width: 3px;
+  background: var(--context-background);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--context-border) 38%, transparent);
+}
+
+.previous-context strong,
+.next-context strong {
+  color: var(--context-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.previous-context pre,
+.next-context pre {
+  color: var(--context-text);
+  opacity: 0.82;
 }
 
 .labels span,

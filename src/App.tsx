@@ -163,9 +163,9 @@ export function App() {
     "--draft-font-family": fontFamilyMap[fontSettings.family],
     "--draft-font-size": `${fontSettings.size}px`,
     "--draft-line-height": String(fontSettings.lineHeight),
-    "--draft-font-weight": fontSettings.bold ? "800" : "400",
-    "--draft-font-style": fontSettings.italic ? "italic" : "normal",
-    "--draft-text-decoration": fontSettings.underline ? "underline" : "none",
+    "--draft-font-weight": "400",
+    "--draft-font-style": "normal",
+    "--draft-text-decoration": "none",
   } as CSSProperties;
   const hasSceneListToggle = Boolean(activeProject && (mode === "review" || mode === "rewrite"));
   const sceneListLabel = activeProject?.writingMode === "freewrite" ? "Chapters" : "Scenes";

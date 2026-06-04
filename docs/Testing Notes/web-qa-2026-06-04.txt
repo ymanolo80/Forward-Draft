@@ -1,0 +1,181 @@
+
+# Forward Draft Manual QA Checklist
+
+Use this checklist before major commits, before Apple wrapper testing, and before TestFlight builds.
+
+## Test Session Setup
+
+- Date:04/06/26
+- Tester:YM
+- Device:MAc Mini
+- Browser or wrapper:Safari
+- App version or commit:
+- Test project:
+- Notes:
+
+## General App Health - all good
+
+- App opens without errors.
+- Write tab opens.
+- Review tab opens.
+- Rewrite tab opens.
+- Options menu opens and stays open while selecting items.
+- Light mode works.
+- Dark mode works.
+- System theme works, if available.
+- Panels do not overlap awkwardly.
+- Buttons remain legible.
+- Text does not overflow buttons or panels.
+- Touch or pointer interaction feels responsive.
+
+## Project Management - all good
+
+- Create new script project.
+- Create new freewriting project.
+- Rename project.
+- Duplicate project.
+- Delete project only after confirmation.
+- Switch between projects.
+- Current project name is clear.
+- Project type is visible in the non-action information area.
+
+## `.frdx` Files - major problems - see notes
+
+- Save project as `.frdx`. - opened Mac popup to share to apps - limited amount of apps - not a save file popup
+- Open saved `.frdx`. - could not save
+- Rename `.frdx` in the file system and reopen it.- could not test
+- Duplicate `.frdx` in the file system and reopen it. - could not test
+- Open an invalid file and confirm the error is understandable. - could not test
+- Save after reopening and confirm no data is lost. - could not test
+
+## Imports - some problems , see notes
+
+- Import Fountain script.
+- Import TXT script.
+- Import Final Draft `.fdx` script.
+- Confirm scene headings are recognized.
+- Confirm action text imports.
+- Confirm dialogue imports. - for fountain and final draft dialoguedoesnt seem to be recognised - its aligned left not center as industry standard
+- Confirm imported project name is sensible.
+- Confirm imported file can then be saved as `.frdx`. - could not test - see above
+- Confirm invalid imports fail gracefully. - no invalid import
+
+## Exports - problems - see notes
+
+- Export Fountain. - gives me share popup instead of save as file system popup
+- Export TXT. - gives me share popup instead of save as file system popup
+- Export PDF. -gives me share popup instead of save as file system popup
+- Export Revision PDF.-gives me share popup instead of save as file system popup
+- Export Changes PDF. -gives me share popup instead of save as file system popup
+- Confirm cover page appears first when present.-cant check due to export problem
+- Confirm full script exports all scenes in order.--cant check due to export problem
+- Confirm scene numbers appear beside headings.--cant check due to export problem
+- Confirm notes appear in Revision PDF. -cant check due to export problem
+- Confirm changed scenes appear in Changes PDF.-cant check due to export problem
+- Open exported files outside Forward Draft.-cant check due to export problem
+
+## Cover Page - all good except cant check export
+
+- Open Cover Page from Options.
+- Edit title.
+- Edit written-by field.
+- Edit contact details.
+- Edit date.
+- Save cover page.
+- Reopen cover page and confirm fields persist.
+- Export with cover page.--cant check due to export problem
+
+## Write: Script Mode - many issues - see notes
+
+- Add a next scene. - the alignment of the whole script seem to the left of the center of the page
+- Insert scene before an existing scene. -does not give me option to choose any scene - only last two
+- Insert scene after an existing scene. - same as above - should be able to choose to insert after any scene
+- Confirm scene numbering updates. - ok
+- Confirm selected scene updates. -ok
+- Type into current scene.
+- Confirm previous scene visibility toggle works.- it does not show the current scene and the previous scene as it should
+- Confirm next scene visibility toggle works.- there is no next scene visibility in write mode
+- Confirm visible text window setting works. - not as intended - the visible text (however many lines or block is selected ) are visible but blurred- that is not the intention. The intention is that they are fully visible and available t read while writing the next part for as long as it has been selected (immediate,x seconds, or after next block - ie/.e permanent until the next scene)
+- Confirm undo works. - not as intended - I types action and the undo button undid the previous action before the typing, namely heading writing and creating new scenes
+- Confirm redo works.- same wrong behaviour as undo - it disregarded the typing
+- Confirm font settings apply clearly. - they do but not as intended- they apply to the whole text everywhere- they should apply to the selected text only
+
+## Write: Freewriting Mode - some issues, see notes
+
+- Create a chapter.
+- Add paragraphs.
+- Confirm previous chapter disappearing behavior.- same issues in behaviour as with scriptwriting mode
+- Confirm previous paragraph disappearing behavior.-- same issues in behaviour as with scriptwriting mode
+- Confirm line-based disappearing behavior.-- same issues in behaviour as with scriptwriting mode
+- Reorder chapters.
+- Confirm chapter numbering updates.
+- Confirm chapter content is preserved.
+- Confirm visible text window setting is clear.
+
+## Review - some issues - see notes
+
+- Full script view shows all scenes in order.
+- Scene view shows selected scene.
+- Scene number appears beside heading.
+- Heading text aligns with action text.
+- Scenes panel hide/show works.
+- Reorder scenes mode works.
+- Dragging scenes shows clear placement feedback.
+- Scene reorder preserves notes and versions.
+- Mark selection creates yellow highlight. - yes but did not highlight the text and add N icon when its in the heading - should always highlight
+- Note editor opens after marking text.
+- Note pin appears beside highlighted text.
+- Clicking note pin opens anchored note popover.
+- Clicking note in side panel opens same anchored note popover.
+- Notes side panel shows highlighted source text.
+- Notes side panel hide/show works.
+
+## Rewrite - issues, see notes
+
+- Selected scene appears in right tool panel with scene number.
+- All-scenes mode updates selected scene when a scene is clicked.
+- Previous scene can be shown and hidden. - yes bit on review their background should be a different color to separate them from the working scene - both previous and next
+- Next scene can be shown and hidden.
+- Reviewed marked-up scene can be shown and hidden.
+- Reviewed-scene notes can be shown and hidden.
+- Notes connect visually to highlighted text.
+- Rewrite workspace accepts edits. - yes but it does not provide the scriptwriting tools, needed to add new dialogue , new action etc...thats something missing form the initial design , need to add it
+- Mark Rewrite Done updates the selected scene.
+- Scenes List appears below workspace.
+- Scene headings use correct numbering format.
+- Compare versions works when more than two versions exist. - yes but thats in review, but all good
+
+## Layout: Tablet And Desktop - all good for Mac - did not check on iPad 
+
+- iPad portrait layout is usable.
+- iPad landscape layout is usable.
+- Mac laptop width is usable.
+- Wide desktop layout is usable.
+- Tool panels remain reachable.
+- Important controls are not hidden behind menus unnecessarily.
+- Long scripts remain readable.
+- Side panels scroll independently where needed.
+
+## Keyboard And Pointer
+
+- Text selection works with pointer.
+- Text selection works with touch, where applicable.
+- External keyboard typing works.
+- Undo shortcut works, if supported. - yes and the undo shortcut and button did wot on action test this time - so contradicts the previous notes for understanding/redo - please double check the functionality and what might have gone wrong
+- Redo shortcut works, if supported.
+- Tab navigation does not trap the user.
+
+## Stability
+
+- App survives reload.
+- App survives switching tabs.
+- App survives closing and reopening.
+- Long project remains responsive.
+- No obvious console errors.
+- No project data disappears.
+
+## Result
+
+Mostly works ok - export is an issue but its just the wrong pop-up - some other minor functionalities- all in line with the notes for each test - if with no notes then works ok
+
+Additional notes:ideally would be great to explore the option of importing PDF scripts as well and being able to ingest them into the software carrying over the proper formatting 

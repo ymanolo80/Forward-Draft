@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ToolFontControls } from "./ToolFontControls";
+import { InlineFountainText } from "./InlineFountainText";
+import { VisualInlineEditor, type VisualInlineEditorHandle } from "./VisualInlineEditor";
 import type { AppData, DraftBlock, FadeTiming, FontSettings, Project, ScriptElement, VisibilityRule } from "../types";
 import { blockToFountain, cycleElement, draftBlocksToScenes, elementClass, inferNextElement, scriptElements } from "../lib/fountain";
 import { createId, nowIso } from "../lib/ids";
+import { visibleDraftWindow } from "../lib/writeVisibility";
+import { draftScenesInWritingOrder, mergeDraftSceneOrder, type DraftInsertPlacement } from "../lib/draftSceneOrder";
+import { screenplayElementSuggestions } from "../lib/scriptSuggestions";
 
 interface WriteModeProps {
   data: AppData;
@@ -21,28 +26,12 @@ interface WriteModeProps {
   setFontSettings: (next: FontSettings) => void;
 }
 
-type InsertPlacement = "append" | "before" | "after";
-
-function visibleCount(rule: VisibilityRule) {
-  if (rule === "last2") return 2;
-  if (rule === "last3") return 3;
-  if (rule === "last4") return 4;
-  if (rule === "last5") return 5;
-  return 1;
-}
-
 function fadeDelay(timing: FadeTiming) {
   if (timing === "immediate") return 0;
   if (timing === "5s") return 5000;
   if (timing === "10s") return 10000;
   return 3000;
 }
-
-const scenePrefixes = ["INT.", "EXT.", "INT./EXT.", "EXT./INT.", "EST."];
-const sceneTimes = ["DAY", "NIGHT", "MORNING", "AFTERNOON", "EVENING", "DAWN", "DUSK", "CONTINUOUS", "LATER", "MOMENTS LATER"];
-const starterLocations = ["WRITING ROOM", "CITY STREET", "KITCHEN", "OFFICE", "CAR"];
-const standardTransitions = ["CUT TO:", "DISSOLVE TO:", "SMASH CUT TO:", "MATCH CUT TO:", "JUMP CUT TO:", "FADE IN:", "FADE OUT.", "BACK TO:", "INTERCUT WITH:"];
-const standardParentheticals = ["(beat)", "(pause)", "(quietly)", "(whispering)", "(to himself)", "(to herself)", "(into phone)", "(CONT'D)", "(then)"];
 
 const visibilityOptions: { value: VisibilityRule; label: string }[] = [
   { value: "current", label: "Current line only" },
@@ -62,59 +51,6 @@ const fadeOptions: { value: FadeTiming; label: string }[] = [
   { value: "10s", label: "Fade after 10 seconds" },
   { value: "nextBlock", label: "Fade after next block" },
 ];
-
-function sceneLocations(project: Project) {
-  const values = new Set<string>();
-  const collect = (heading: string) => {
-    const value = heading.toUpperCase();
-    const prefix = scenePrefixes.find((item) => value.startsWith(item));
-    if (!prefix) return;
-    const withoutPrefix = value.slice(prefix.length).trim();
-    const location = withoutPrefix.split(" - ")[0]?.trim();
-    if (location) values.add(location);
-  };
-  project.scenes.forEach((scene) => collect(scene.heading));
-  project.drafts.filter((block) => block.element === "Scene Heading").forEach((block) => collect(block.text));
-  starterLocations.forEach((location) => values.add(location));
-  return [...values].slice(0, 8);
-}
-
-function sceneHeadingSuggestions(text: string, project: Project) {
-  const value = text.toUpperCase();
-  const prefix = scenePrefixes.find((item) => value.startsWith(item));
-  if (!prefix) return scenePrefixes.filter((item) => item.startsWith(value)).slice(0, 5);
-
-  const hasSeparator = value.includes(" - ");
-  if (!hasSeparator) {
-    const locationText = value.slice(prefix.length).trim();
-    const locations = sceneLocations(project).filter((location) => location.startsWith(locationText));
-    if (locationText && locations.length === 0) return [`${value} - `];
-    return locations.map((location) => `${prefix} ${location} - `).slice(0, 5);
-  }
-
-  const [beforeTime, timeText = ""] = value.split(" - ");
-  return sceneTimes
-    .filter((time) => time.startsWith(timeText.trim()))
-    .map((time) => `${beforeTime} - ${time}`)
-    .slice(0, 5);
-}
-
-function optionSuggestions(text: string, options: string[]) {
-  const normalized = text.trim().toUpperCase().replace(/^\(/, "");
-  return options
-    .filter((option) => {
-      const cleanOption = option.toUpperCase().replace(/^\(/, "");
-      return cleanOption.startsWith(normalized);
-    })
-    .slice(0, 6);
-}
-
-function elementSuggestions(element: ScriptElement, text: string, project: Project) {
-  if (element === "Scene Heading") return sceneHeadingSuggestions(text, project);
-  if (element === "Transition") return optionSuggestions(text, standardTransitions);
-  if (element === "Parenthetical") return optionSuggestions(text, standardParentheticals);
-  return [];
-}
 
 export function WriteMode({
   data,
@@ -136,21 +72,16 @@ export function WriteMode({
   const [activeText, setActiveText] = useState("");
   const [activeStartedAt, setActiveStartedAt] = useState(Date.now());
   const [clock, setClock] = useState(Date.now());
-  const [sectionPlacement, setSectionPlacement] = useState<InsertPlacement>("append");
+  const [sectionPlacement, setSectionPlacement] = useState<DraftInsertPlacement>("append");
   const [placementSceneId, setPlacementSceneId] = useState(project.scenes[0]?.sceneId ?? "");
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [typingUndoStack, setTypingUndoStack] = useState<string[]>([]);
+  const [typingRedoStack, setTypingRedoStack] = useState<string[]>([]);
+  const inputRef = useRef<VisualInlineEditorHandle>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 500);
     return () => window.clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    const input = inputRef.current;
-    if (!input) return;
-    input.style.height = "0px";
-    input.style.height = `${Math.max(input.scrollHeight, 28)}px`;
-  }, [activeText, element]);
 
   useEffect(() => {
     if (project.writingMode === "freewrite" && element !== "Chapter Heading" && element !== "General Text") {
@@ -160,7 +91,7 @@ export function WriteMode({
   }, [element, project.writingMode]);
 
   useEffect(() => {
-    const targets = project.scenes.filter((scene) => scene.source !== "draft").sort((a, b) => a.order - b.order);
+    const targets = [...project.scenes].sort((a, b) => a.order - b.order);
     if (targets.length === 0) {
       setPlacementSceneId("");
       setSectionPlacement("append");
@@ -170,6 +101,12 @@ export function WriteMode({
       setPlacementSceneId(targets[0].sceneId);
     }
   }, [placementSceneId, project.scenes]);
+
+  useEffect(() => {
+    setActiveText("");
+    setTypingUndoStack([]);
+    setTypingRedoStack([]);
+  }, [project.projectId]);
 
   const updateProject = (next: Project, nextVersions = data.versions) => {
     setData({
@@ -182,12 +119,7 @@ export function WriteMode({
   const applyDraft = (draft: DraftBlock[]) => {
     const sectionLabel = project.writingMode === "freewrite" ? "chapter" : "scene";
     const parsed = draftBlocksToScenes(project.projectId, draft, sectionLabel);
-    const existingDraftScenes = project.scenes
-      .filter((scene) => scene.source === "draft")
-      .sort((a, b) => a.order - b.order);
-    const baseScenes = project.scenes
-      .filter((scene) => scene.source !== "draft")
-      .sort((a, b) => a.order - b.order);
+    const existingDraftScenes = draftScenesInWritingOrder(project.scenes);
     const draftSceneIds = new Set(existingDraftScenes.map((scene) => scene.sceneId));
     const nextDraftVersions = parsed.scenes.map((scene, index) => {
       const existing = existingDraftScenes[index];
@@ -217,16 +149,12 @@ export function WriteMode({
         },
       };
     });
-    let insertIndex = baseScenes.length;
-    if (sectionPlacement !== "append" && placementSceneId) {
-      const targetIndex = baseScenes.findIndex((scene) => scene.sceneId === placementSceneId);
-      if (targetIndex >= 0) insertIndex = sectionPlacement === "before" ? targetIndex : targetIndex + 1;
-    }
-    const scenes = [
-      ...baseScenes.slice(0, insertIndex),
-      ...nextDraftVersions.map((item) => item.scene),
-      ...baseScenes.slice(insertIndex),
-    ].map((scene, index) => ({ ...scene, order: index + 1 }));
+    const scenes = mergeDraftSceneOrder(
+      project.scenes,
+      nextDraftVersions.map((item) => item.scene),
+      sectionPlacement,
+      placementSceneId,
+    );
     const preservedVersions = data.versions.filter((version) => !draftSceneIds.has(version.sceneId));
     updateProject(
       {
@@ -256,18 +184,10 @@ export function WriteMode({
     const draft = [...project.drafts, block];
     applyDraft(draft);
     setActiveText("");
+    setTypingUndoStack([]);
+    setTypingRedoStack([]);
     setActiveStartedAt(Date.now());
     if (nextElement) setElement(nextElement);
-  };
-
-  const undoLastBlock = () => {
-    const lastBlock = project.drafts.at(-1);
-    if (!lastBlock) return;
-    applyDraft(project.drafts.slice(0, -1));
-    setActiveText(lastBlock.text);
-    if (project.writingMode === "script" && lastBlock.element !== "General Text") setElement(lastBlock.element);
-    setActiveStartedAt(Date.now());
-    window.setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   const normalizeInput = (value: string) => {
@@ -275,11 +195,49 @@ export function WriteMode({
     return value;
   };
 
-  const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const updateActiveText = (value: string) => {
+    const next = normalizeInput(value);
+    if (next === activeText) return;
+    setTypingUndoStack((history) => [...history, activeText].slice(-100));
+    setTypingRedoStack([]);
+    setActiveText(next);
+  };
+
+  const undoWrite = () => {
+    const previous = typingUndoStack.at(-1);
+    if (previous === undefined) {
+      setTypingRedoStack([]);
+      onUndo();
+      return;
+    }
+    setTypingUndoStack((history) => history.slice(0, -1));
+    setTypingRedoStack((history) => [...history, activeText].slice(-100));
+    setActiveText(previous);
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const redoWrite = () => {
+    const next = typingRedoStack.at(-1);
+    if (next === undefined) {
+      onRedo();
+      return;
+    }
+    setTypingRedoStack((history) => history.slice(0, -1));
+    setTypingUndoStack((history) => [...history, activeText].slice(-100));
+    setActiveText(next);
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const formatSelection = (marker: string) => {
+    inputRef.current?.formatSelection(marker);
+  };
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const key = event.key.toLowerCase();
-    if ((event.metaKey || event.ctrlKey) && (key === "z" || key === "x") && activeText.length === 0 && project.drafts.length > 0) {
+    if ((event.metaKey || event.ctrlKey) && (key === "z" || key === "y")) {
       event.preventDefault();
-      undoLastBlock();
+      if (key === "y" || event.shiftKey) redoWrite();
+      else undoWrite();
       return;
     }
     if (event.key === "Tab" && project.writingMode === "script") {
@@ -297,37 +255,24 @@ export function WriteMode({
       );
       return;
     }
-    if (event.key === "Backspace") {
-      const selection = event.currentTarget.selectionStart;
-      if (selection === 0 && activeText.length === 0) event.preventDefault();
-    }
+    if (event.key === "Backspace" && activeText.length === 0) event.preventDefault();
   };
 
-  const recentBlocks = useMemo(() => {
-    if (visibility === "previousScene" && project.writingMode === "script") {
-      const lastSceneIndex = project.drafts.findLastIndex((block) => block.element === "Scene Heading");
-      return project.drafts.slice(Math.max(lastSceneIndex, 0));
-    }
-    if (visibility === "previousChapter" && project.writingMode === "freewrite") {
-      const lastChapterIndex = project.drafts.findLastIndex((block) => block.element === "Chapter Heading");
-      return project.drafts.slice(Math.max(lastChapterIndex, 0));
-    }
-    return project.drafts.slice(-visibleCount(visibility));
-  }, [project.drafts, project.writingMode, visibility]);
-
   const shouldFade = fadeTiming !== "nextBlock" && clock - activeStartedAt >= fadeDelay(fadeTiming);
+  const recentBlocks = useMemo(
+    () => visibleDraftWindow(project.drafts, project.writingMode, visibility, fadeTiming, shouldFade),
+    [fadeTiming, project.drafts, project.writingMode, shouldFade, visibility],
+  );
   const liveElement = project.writingMode === "script" ? element : element === "Chapter Heading" ? "Chapter Heading" : "General Text";
-  const suggestions = project.writingMode === "script" ? elementSuggestions(element, activeText, project) : [];
-  const keepVisibleUntilSectionChange =
-    visibility === "previousScene" ||
-    (project.writingMode === "freewrite" && (visibility === "previousBlock" || visibility === "previousChapter"));
+  const suggestions =
+    project.writingMode === "script" ? screenplayElementSuggestions(element, activeText, project, data.versions) : [];
   const writeVisibilityOptions = visibilityOptions.filter((option) => {
     if (project.writingMode === "script") return option.value !== "previousBlock" && option.value !== "previousChapter";
     return option.value !== "previousScene";
   });
   const sectionName = project.writingMode === "script" ? "scene" : "chapter";
   const sortedScenes = [...project.scenes].sort((a, b) => a.order - b.order);
-  const placementTargets = sortedScenes.filter((scene) => scene.source !== "draft");
+  const placementTargets = sortedScenes;
   const visibleScriptElements = scriptElements.filter((item) => item !== "Note" && item !== "Shot");
 
   return (
@@ -337,36 +282,32 @@ export function WriteMode({
           <div className="page-shell write-shell">
             <article className="script-page write-page" onClick={() => inputRef.current?.focus()}>
               <div className="locked-draft" aria-label="Recent draft text">
-                {recentBlocks.map((block, index) => (
+                {recentBlocks.map(({ block, faded }) => (
                   <div
-                    className={`script-line ${elementClass(block.element)} ${
-                      !keepVisibleUntilSectionChange && (index < recentBlocks.length - 1 || shouldFade) ? "faded" : ""
-                    }`}
+                    className={`script-line ${elementClass(block.element)} ${faded ? "faded" : ""}`}
                     key={block.blockId}
                   >
-                    <span>{blockToFountain(block)}</span>
+                    <span><InlineFountainText text={blockToFountain(block)} /></span>
                   </div>
                 ))}
               </div>
               <div className={`active-writing-line script-line ${elementClass(liveElement)}`}>
-                <textarea
+                <VisualInlineEditor
+                  ariaLabel="Script page editor"
+                  className="active-writing-editor"
                   ref={inputRef}
-                  value={activeText}
-                  onChange={(event) => setActiveText(normalizeInput(event.target.value))}
+                  text={activeText}
+                  onChange={updateActiveText}
                   onKeyDown={onKeyDown}
                   placeholder={project.writingMode === "script" ? element : element === "Chapter Heading" ? "Chapter title" : "Start typing"}
-                  spellCheck
-                  rows={1}
-                  aria-label="Script page editor"
-                  name="script-page-editor"
                 />
                 {suggestions.length > 0 && (
-                  <div className="scene-autocomplete" aria-label="Scene heading suggestions">
+                  <div className="scene-autocomplete" aria-label={`${liveElement} suggestions`}>
                     {suggestions.map((suggestion) => (
                       <button
                         key={suggestion}
                         onClick={() => {
-                          setActiveText(suggestion);
+                          updateActiveText(suggestion);
                           inputRef.current?.focus();
                         }}
                       >
@@ -419,7 +360,7 @@ export function WriteMode({
               <select
                 name="section-placement"
                 value={sectionPlacement}
-                onChange={(event) => setSectionPlacement(event.target.value as InsertPlacement)}
+                onChange={(event) => setSectionPlacement(event.target.value as DraftInsertPlacement)}
               >
                 <option value="append">Next {sectionName}</option>
                 <option value="before">Before existing {sectionName}</option>
@@ -437,7 +378,7 @@ export function WriteMode({
                   {placementTargets.map((scene) => (
                     <option key={scene.sceneId} value={scene.sceneId}>
                       {project.writingMode === "script"
-                        ? `${scene.heading} #${scene.order}`
+                        ? `${scene.order}  ${scene.heading}`
                         : `Chapter ${scene.order}: ${scene.heading}`}
                     </option>
                   ))}
@@ -491,13 +432,13 @@ export function WriteMode({
             </section>
           )}
 
-          <ToolFontControls fontSettings={fontSettings} setFontSettings={setFontSettings} />
+          <ToolFontControls fontSettings={fontSettings} setFontSettings={setFontSettings} onFormatSelection={formatSelection} />
 
           <section className="tool-section">
             <h3>Undo / Redo</h3>
             <div className="icon-button-row">
-              <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↺</button>
-              <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↻</button>
+              <button aria-label="Undo" title="Undo" onClick={undoWrite} disabled={typingUndoStack.length === 0 && !canUndo}>↺</button>
+              <button aria-label="Redo" title="Redo" onClick={redoWrite} disabled={typingRedoStack.length === 0 && !canRedo}>↻</button>
             </div>
           </section>
 

@@ -12,9 +12,11 @@ export const scriptElements: ScriptElement[] = [
   "Note",
 ];
 
+const writableScriptElements: ScriptElement[] = scriptElements.filter((element) => element !== "Shot" && element !== "Note");
+
 export function cycleElement(current: ScriptElement) {
-  const index = scriptElements.indexOf(current);
-  return scriptElements[(index + 1) % scriptElements.length];
+  const index = writableScriptElements.indexOf(current);
+  return writableScriptElements[(index + 1) % writableScriptElements.length];
 }
 
 export function inferNextElement(current: ScriptElement, text: string): ScriptElement {
