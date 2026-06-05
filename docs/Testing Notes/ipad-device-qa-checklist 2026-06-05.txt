@@ -1,0 +1,102 @@
+# iPad Device QA Checklist
+
+Use this checklist for the first physical iPad pass. Record notes in `docs/Testing Notes/`.
+
+## First Launch And Chrome
+
+- [Y] App launches from the iPad home screen.
+- [N] Top bar clears the iPad status bar in portrait. - YES BUT THE POSITIONING OF THE TOOLS (OPTIONSAND SCENES) AND 3 MODE TABS IS OFF - THE 3 TABS SHOULD BE CENTRAL AND OPTIONS RIGHT, SCENES LEFT M AS IN LANDSCAPE - 
+- [Y] Top bar clears the iPad status bar in landscape.
+- [Y] Options button clears battery, Wi-Fi, and system indicators.
+- [N] Bottom content clears the home indicator. - TH OPTIONS POP UP BOX GOES BEYOND THE SCREEN - AS THERE IS SCROLLING ITS NOT A NAVIGATIONAL PROBLEM BUT IT IS AN AESTHETIC ONE
+- [Y] Light mode looks correct.
+- [Y] Dark mode looks correct.
+- [Y] Switching iPad appearance updates the app without visual glitches.
+
+## Orientation And Layout
+
+- [N] Portrait layout is usable without horizontal clipping. - OPTIONS POPUP IS ON THE LEFT AND COMES UP OUTSIDE THE BOUNDARIES OF THE APP SCREEN - NOT USEABLE
+- [Y] Landscape layout is usable without horizontal clipping.
+- [N  Scene list opens and closes cleanly.- IN LANDSCAPE ONLY
+- [Y] Scene list does not cover important writing controls.
+- [N] Right tools panel remains readable and scrollable.IN LANDSCAPE ONLY
+- [N] Options menu fits on screen and scrolls if needed.IN LANDSCAPE ONLY
+- [Y] Popovers, note boxes, and cover page editor stay inside the visible area.
+
+## Touch And Keyboard Input
+
+- [Y] Tap targets feel large enough for fingers.
+- [Y] Text cursor placement works in Write.
+- [Y] Text cursor placement works in Rewrite.
+- [Y] On-screen keyboard does not hide the active writing area.
+- [Y] External keyboard typing works if available.
+- [Y] Tab cycles screenplay elements with an external keyboard.
+- [N] Undo and redo buttons work after typing and non-typing actions. - YES IN WRITE AND REVIEW, NO IN REWRITE
+
+## Write Mode
+
+- [N] Create a new scene at the end. - ALTHOUGH IT CREATES THE SCENE AND HEADING IT EXHIBITS A WEIRD BEHAVIOR - THE TEXT WRITTEN IN THE HEADING IS THEN REPEATED AS ACTION WHEN THE CURSOR MOVED INTO ACTIONS - SAME HAPPEND FORM ACTION TO TO CHARACTER AND SO ON
+- [Y] Insert a scene before an existing scene.
+- [Y] Insert a scene after an existing scene.
+- [N] Create a new chapter in freewriting mode. - YES BIUT EXHIBITS THE SAME ISSUE AS WITH SCRIPT MODE WHERE THE NEXT ELEMENT (PARAGRAPH) HAS THE SAME CHARACTERS AS THE CHAPTER ALREADY TYPED AUTOMATICALLY
+- [ ] Insert a chapter before an existing chapter. - YES, BUT I SAW A BEHAVIOR THAT SHPOULD NOT BE THERE - THE NEW CHAPTER PLACEMENT OPTION IS THERE WHEN WE CHOOSE PARAGRAPH OR CHAPTER AS A UNIT- BUT IT DOES NOTHING FOR PARAGRAPH - SO IDEALLY WE WANT THE NEW CHAPTER PLACEMENT TO ONLY APPEAR WHEN CHAPTER IS SELECTED
+- [Y] Insert a chapter after an existing chapter.
+- [Y] Visible Text Window options behave correctly.
+- [N] Fade timing behaves correctly. - LAST 2 LINES FADE AFTER 3 SECONDS DOES NOT WORK - LINES ARE STILL THRE - I THINK IT MIGHT BE A PROBLEM OF THE DEFINITION OF WHAT IS A LINE - ANY TYPED LINE IN A SENTENCE THAT THEN MOVED TO THE NEXT LINE BELOW AS THE TEXT DOES NOT FIR CONSTITUTES ALINE FOR OUR RULES. WEHN WE HOT ENTER THEN ITS A NEW PARAGRAPH.I THINK NOW IT TREATS PARAGRAPHS AS LINES.
+- [ ] Scene/chapter suggestions appear where expected.
+- [ ] Character name suggestions appear where expected.
+- ISSUE - WHEN CREATING A NEW SCENE THE HEADING SUGGESTIONS COME UP BUT WHEN SELECTED THEY DO NOT REGISTER AND GET TYPED - NOTHING HAPPENS
+-ISSUE - WHEN WRITING A PARAGRAPH IN FREE MODE AND WANT TO START A NEW CHAPTER, ENTER DOES NOT TAKE ME. THE NEXT UNIT AND IF I HIT CHAPTER THE CURRENT PARAGRAPH BECOMES A CHAPTER HEADING
+
+## Review Mode
+
+- [Y] Full Script view uses proper scene numbering beside headings.
+- [Y] Scene view uses proper scene numbering beside headings.
+- [N] Scene reorder works by touch drag. - THE DRAG TARGET DOES NOT WORK - SO NO CLICK OR TAP AND DRAG AND NO REORDERING WORKING
+- [N] Mark Selection works with touch-selected text. - NO ONLY WITH MOUSE, DOESNT WORK WITH FINGER SELECTION - GET IPADOS CONTEXT MENU POPUP (COPY, LOOKUP, TRANSLATE) AND NNOMMARK SELECTION OPTION ACTIVE, ITS STAYS GREYED OUT
+- [Y] Note icon opens the connected note popover.- YES IN BOTH CLICK AND TAP
+- [Y] Tapping a note in the side panel opens the same connected note popover.
+- [Y] Approve and Needs Rewrite update scene status.
+- [N] Compare versions allows choosing versions when more than two exist. - YES THE OPTION DOES ALLOW IT- BUT IT DOESNT SEEM TO UPDATE THE CPMPARED VERSION TEXT IN THE COMPARIOSN BOX THOUGH - THE LATEST EDIED SCENE STILL REMAINS - ALSO IN THE TWO PANE INTERFACE IT SHOULD CLEARLY STATE WHICH VERSION IS WHICH ON THE TOP OF EACH - IST A BIT CONFUSING NOW - ITS JUST SAYS "COMPARE VX" ON THE TOP LEFT OF THE LEFT PANE - NOT SURE WHAT I AM LOOKING AT
+
+## Rewrite Mode
+
+- [Y] Selected scene heading shows the correct scene number and heading.
+- [Y] Single Scene workspace works.
+- [Y] All Scenes workspace works.
+- [Y] Previous/next scene panels are visually distinct and legible. - YES BUT SOMETHING I NOTICED- PREVIOUS/NXT SCENE DOES NOT WORK IN ALL SCENES MODE AS IT SHOULD AS ALL THE SCENES ARE THERE - SO WHEN ALL SCENES ARE SELECTED THE PREVIOUS/NEXT SCENE OPTION SHOULD DISSAPEAR
+- [Y] Reviewed scene preview can be shown and hidden.
+- [Y] Notes in reviewed scene can be shown and hidden.
+- [ ] Script element buttons behave like Write mode. - YES, BUT ONE ISSUE IS THAT I HAD A PARAGRPAH OF ACTION, I PRESSED HEADING AND IT CAPIRALISED EVERYTHIGN AS IT SHOULD TO BECOME HEADING (WAS ACCIDENTAL, PRESS, BUT CORRCT BEHAVIOR) BUT WHEN I PRESSED ACTION AGAIN TO CORRECT IT IT DIDNT GO BACK TO ACTION FORMATTING - AND IT DIDNT WORK WITH THE UDI EITHER - ALSO SOMETHING POSITIVE HERE - THE SCRIPT ELEMENT SUGGESTIONS ALL COME UP, HEADING, CHARACTERS ETC. AND THEY DO REGISTER IN THIS MODE - AS OPPOSED TO THE WRITE MODE WHERE THEY DONT
+- [Y] Text style controls apply only to selected text where expected.- YES AND SUPRISINGLY ALSO WORKS FORM THE OS POPUP SELECTION OPTION, NOT. A BAD THING
+- [Y] Mark Rewrite Done updates scene status.
+
+## File Workflows
+
+- [N] Save `.frdx` project from the native app. - NO, I DONT KNOW IF IT DOES, I GET NO VERIFICATION, NO OPTION TO SAVE SOMEWHERE, NOTHING
+- [N] Open saved `.frdx` project from Files. - CANT CHECK, NEXT ROUND OF TESTS
+- [N] Duplicate and rename `.frdx` in Files, then open it.- CANT CHECK, NEXT ROUND OF TESTS
+- [Y] Import Fountain.
+- [Y] Import TXT. - YES BUT RHE ALIGNMENT SEEMS OFF IN THE CHARACTER ELEMENT
+- [N] Import Final Draft `.fdx`.- FILE SYSTEM OPENS BUT THE .FDX TEST FILE IS GREYED OUT, IT DOES NOT RECOGNIZE THE FILE
+- [N] Export Fountain. - NONE OF THE EPORT OPTIONS DO ANYTHING - NO FILE SYSTEM POPUP OR DOWNLOAD
+- [N] Export TXT.- NONE OF THE EPORT OPTIONS DO ANYTHING - NO FILE SYSTEM POPUP OR DOWNLOAD
+- [N] Export PDF.- NONE OF THE EPORT OPTIONS DO ANYTHING - NO FILE SYSTEM POPUP OR DOWNLOAD
+- [N] Export Revision PDF.- NONE OF THE EPORT OPTIONS DO ANYTHING - NO FILE SYSTEM POPUP OR DOWNLOAD
+- [N] Export Changes PDF.- NONE OF THE EPORT OPTIONS DO ANYTHING - NO FILE SYSTEM POPUP OR DOWNLOAD
+- [N] Confirm exported files can be opened outside Forward Draft.- NONE OF THE EPORT OPTIONS DO ANYTHING - NO FILE SYSTEM POPUP OR DOWNLOAD
+
+## Stability Notes
+
+- [Y] Relaunch preserves project state.
+- [Y] Force quit and reopen preserves project state.
+- [Y] iPad sleep/wake preserves current work.
+- [Y] App remains responsive with a longer imported script.
+- [Y] No obvious overheating, heavy lag, or repeated reloads.
+
+## Decision Gate
+
+- [ ] Is the current web-wrapper approach acceptable for TestFlight? - NOT SURE YOU JUDGE, DONT HAVE THE EPXERIENC EFOR THIS
+- [ ] Do file workflows need a native file-service adapter before TestFlight? - NOTUSRE YOU JUDGE 
+- [ ] Does touch text selection need platform-specific refinement? - DONT THINK SO
+- [ ] Are portrait and landscape both good enough, or should iPad launch be landscape-first? PORTTRAIT NEEDS DESIGN ADJUSTMENTS - LANDSCAPE SHOUL DBE THE PREFERED METHOD THOUGH AS IT WILL PROBBALY BE USED WITH A KEYBOARD IN A CASE

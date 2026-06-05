@@ -118,7 +118,7 @@ function splitScriptSections(lines: string[]): ImportedSection[] {
   };
 
   for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
+    const line = rawLine.trim();
     if (isSceneHeading(line)) {
       const preamble = !hasSeenSceneHeading && currentLines.some((item) => item.trim()) ? currentLines : [];
       if (preamble.length === 0) flush();

@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import type { AppData, CoverPage, Project, ReviewNote, Scene, SceneVersion } from "../types";
 import { savePortableFile, type FileSaveResult } from "./fileService";
 import { PROJECT_FILE_MIME, projectFileName, serializeProjectFile } from "./projectFile";
+import { parseScreenplayText, type ScreenplayTextBlock } from "./screenplay";
 
 export type ProjectFileSaveResult = FileSaveResult;
 
@@ -126,37 +127,50 @@ function drawCoverPage(pdf: jsPDF, project: Project) {
   if (cover.date.trim()) pdf.text(cover.date, 186, 272, { align: "right" });
 }
 
+function cleanBlockLayout(block: ScreenplayTextBlock) {
+  if (block.element === "Scene Heading") return { x: 36, width: 138, align: "left" as const, gap: block.hasGapBefore ? 8 : 0 };
+  if (block.element === "Character") return { x: 83, width: 48, align: "center" as const, gap: block.hasGapBefore ? 8 : 5 };
+  if (block.element === "Dialogue") return { x: 58, width: 86, align: "left" as const, gap: 0 };
+  if (block.element === "Parenthetical") return { x: 72, width: 62, align: "left" as const, gap: 0 };
+  if (block.element === "Transition") return { x: 122, width: 54, align: "right" as const, gap: block.hasGapBefore ? 8 : 5 };
+  return { x: 36, width: 138, align: "left" as const, gap: block.hasGapBefore ? 8 : 5 };
+}
+
 function addCleanScript(pdf: jsPDF, project: Project, data: AppData) {
   pdf.addPage();
   pdf.setFont("courier", "normal");
   pdf.setFontSize(11);
   pdf.setTextColor(20, 20, 20);
   let y = 22;
-  const x = 24;
-  const width = 162;
   const lineHeight = 5.2;
-  for (const scene of currentScenes(project, data)) {
-    const wrapped = pdf.splitTextToSize(scene.version.text.trim() || " ", width) as string[];
-    for (const line of [...wrapped, ""]) {
-      if (y > 276) {
-        pdf.addPage();
-        y = 22;
-      }
-      pdf.text(line || " ", x, y);
-      y += lineHeight;
-    }
-  }
-}
+  const bottom = 276;
 
-function noteAnchorLine(note: ReviewNote, text: string, versionId: string) {
-  if (note.versionId === versionId && note.rangeStart >= 0) {
-    return text.slice(0, Math.min(note.rangeStart, text.length)).split("\n").length - 1;
+  const ensureRoom = (needed = lineHeight) => {
+    if (y + needed <= bottom) return;
+    pdf.addPage();
+    y = 22;
+  };
+
+  for (const { scene, version } of currentScenes(project, data)) {
+    const blocks = parseScreenplayText(version.text.trim());
+    blocks.forEach((block) => {
+      const layout = cleanBlockLayout(block);
+      y += layout.gap;
+      ensureRoom();
+
+      if (block.element === "Scene Heading") {
+        pdf.text(String(scene.order), 24, y, { align: "right" });
+      }
+
+      const lines = pdf.splitTextToSize(block.text.trim() || " ", layout.width) as string[];
+      lines.forEach((line) => {
+        ensureRoom();
+        pdf.text(line || " ", layout.x, y, { align: layout.align, maxWidth: layout.width });
+        y += lineHeight;
+      });
+    });
+    y += lineHeight;
   }
-  if (note.selectedText) {
-    const index = text.indexOf(note.selectedText);
-    if (index >= 0) return text.slice(0, index).split("\n").length - 1;
-  }
-  return 0;
 }
 
 function sceneNotes(scene: Scene, data: AppData) {
@@ -167,17 +181,281 @@ function sceneNotes(scene: Scene, data: AppData) {
 
 function noteCardText(note: ReviewNote) {
   const selected = note.selectedText ? `"${note.selectedText}"` : "Scene note";
-  const resolved = note.resolved ? "Resolved" : "Open";
-  return [`${note.noteType} / ${note.priority} / ${resolved}`, selected, note.noteText].filter(Boolean).join("\n");
+  return [selected, note.noteText || "No note"].join("\n");
 }
 
-function wrapSceneLines(pdf: jsPDF, text: string, width: number) {
-  const rows: { text: string; sourceLine: number }[] = [];
-  text.split("\n").forEach((line, index) => {
-    const wrapped = pdf.splitTextToSize(line || " ", width) as string[];
-    wrapped.forEach((part) => rows.push({ text: part, sourceLine: index }));
+interface AnnotatedRow {
+  text: string;
+  element: ScreenplayTextBlock["element"];
+  rangeStart: number;
+  rangeEnd: number;
+  x: number;
+  width: number;
+  align: "left" | "center" | "right";
+  gap: number;
+}
+
+function annotatedBlockLayout(block: ScreenplayTextBlock) {
+  const gap = block.hasGapBefore ? 8 : block.element === "Character" || block.element === "Transition" ? 5 : 0;
+  if (block.element === "Scene Heading") return { x: 34, width: 106, align: "left" as const, gap };
+  if (block.element === "Character") return { x: 88, width: 44, align: "center" as const, gap };
+  if (block.element === "Dialogue") return { x: 56, width: 80, align: "left" as const, gap };
+  if (block.element === "Parenthetical") return { x: 68, width: 58, align: "left" as const, gap };
+  if (block.element === "Transition") return { x: 134, width: 38, align: "right" as const, gap };
+  return { x: 34, width: 106, align: "left" as const, gap: block.hasGapBefore ? 8 : 5 };
+}
+
+function layoutAnnotatedRows(pdf: jsPDF, text: string): AnnotatedRow[] {
+  const rows: AnnotatedRow[] = [];
+  parseScreenplayText(text).forEach((block) => {
+    const layout = annotatedBlockLayout(block);
+    const displayText = block.text.trim() || " ";
+    const leadingOffset = block.text.indexOf(displayText.trim()) >= 0 ? block.text.indexOf(displayText.trim()) : 0;
+    const wrapped = pdf.splitTextToSize(displayText, layout.width) as string[];
+    let cursor = 0;
+    wrapped.forEach((part, index) => {
+      const partIndex = displayText.indexOf(part, cursor);
+      const start = partIndex >= 0 ? partIndex : cursor;
+      const end = start + part.length;
+      rows.push({
+        text: part,
+        element: block.element,
+        rangeStart: block.rangeStart + leadingOffset + start,
+        rangeEnd: block.rangeStart + leadingOffset + end,
+        x: layout.x,
+        width: layout.width,
+        align: layout.align,
+        gap: index === 0 ? layout.gap : 0,
+      });
+      cursor = end;
+    });
   });
   return rows;
+}
+
+function clampRange(start: number, end: number, length: number) {
+  const safeStart = Math.max(0, Math.min(start, length));
+  const safeEnd = Math.max(safeStart, Math.min(end, length));
+  return { start: safeStart, end: safeEnd };
+}
+
+function exactSelectedSpan(note: ReviewNote, text: string) {
+  if (!note.selectedText) return undefined;
+  const expected = clampRange(note.rangeStart, note.rangeEnd, text.length);
+  if (text.slice(expected.start, expected.end) === note.selectedText) return expected;
+  const index = text.indexOf(note.selectedText);
+  if (index < 0) return undefined;
+  return { start: index, end: index + note.selectedText.length };
+}
+
+function contextEndInNewText(beforeContext: string, text: string) {
+  if (!beforeContext) return 0;
+  const maxLength = Math.min(beforeContext.length, 80);
+  for (let length = maxLength; length >= 8; length -= 1) {
+    const fragment = beforeContext.slice(-length);
+    const index = text.indexOf(fragment);
+    if (index >= 0) return index + fragment.length;
+  }
+  return undefined;
+}
+
+function contextStartInNewText(afterContext: string, text: string, from: number) {
+  if (!afterContext) return text.length;
+  const maxLength = Math.min(afterContext.length, 80);
+  for (let length = maxLength; length >= 8; length -= 1) {
+    const fragment = afterContext.slice(0, length);
+    const index = text.indexOf(fragment, from);
+    if (index >= 0) return index;
+  }
+  return undefined;
+}
+
+function mappedNoteAnchor(note: ReviewNote, oldText: string | undefined, currentText: string, currentVersionId: string) {
+  if (note.versionId === currentVersionId) {
+    const direct = clampRange(note.rangeStart, note.rangeEnd, currentText.length);
+    if (direct.end > direct.start) return { span: direct };
+  }
+
+  if (oldText) {
+    const oldRange = clampRange(note.rangeStart, note.rangeEnd, oldText.length);
+    const beforeContext = oldText.slice(Math.max(0, oldRange.start - 80), oldRange.start);
+    const afterContext = oldText.slice(oldRange.end, Math.min(oldText.length, oldRange.end + 80));
+    const newStart = contextEndInNewText(beforeContext, currentText);
+    if (newStart !== undefined) {
+      const newEnd = contextStartInNewText(afterContext, currentText, newStart);
+      if (newEnd !== undefined && newEnd >= newStart) {
+        if (newEnd > newStart) return { span: { start: newStart, end: newEnd } };
+        return { deletionAt: newStart };
+      }
+    }
+  }
+
+  const exact = exactSelectedSpan(note, currentText);
+  if (exact && exact.end > exact.start) return { span: exact };
+  return undefined;
+}
+
+function rowTextLeft(pdf: jsPDF, row: AnnotatedRow) {
+  const width = pdf.getTextWidth(row.text);
+  if (row.align === "center") return row.x - width / 2;
+  if (row.align === "right") return row.x - width;
+  return row.x;
+}
+
+function basicChangeAnchor(oldText: string | undefined, currentText: string) {
+  if (!oldText || oldText === currentText) return undefined;
+  let prefix = 0;
+  while (prefix < oldText.length && prefix < currentText.length && oldText[prefix] === currentText[prefix]) prefix += 1;
+  let oldSuffix = oldText.length;
+  let currentSuffix = currentText.length;
+  while (oldSuffix > prefix && currentSuffix > prefix && oldText[oldSuffix - 1] === currentText[currentSuffix - 1]) {
+    oldSuffix -= 1;
+    currentSuffix -= 1;
+  }
+  const oldChanged = oldText.slice(prefix, oldSuffix).trim();
+  const newChanged = currentText.slice(prefix, currentSuffix).trim();
+  if (newChanged) {
+    const start = currentText.indexOf(newChanged, prefix);
+    if (start >= 0) {
+      return {
+        text: [`"${oldChanged || "Added text"}"`, "Changed in rewrite"].join("\n"),
+        span: { start, end: start + newChanged.length },
+      };
+    }
+  }
+  if (oldChanged) return { text: [`"${oldChanged}"`, "Deleted in rewrite"].join("\n"), deletionAt: prefix };
+  return undefined;
+}
+
+interface ChangeAnchor {
+  text: string;
+  span?: { start: number; end: number };
+  deletionAt?: number;
+}
+
+function wordTokens(text: string) {
+  return [...text.matchAll(/\S+/g)].map((match) => ({
+    text: match[0],
+    start: match.index ?? 0,
+    end: (match.index ?? 0) + match[0].length,
+  }));
+}
+
+function compactQuoted(value: string) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  return normalized.length > 120 ? `${normalized.slice(0, 117).trim()}...` : normalized;
+}
+
+function changeCardText(oldText: string, hasNewText: boolean) {
+  const oldLine = compactQuoted(oldText);
+  if (oldLine) return [`"${oldLine}"`, hasNewText ? "Changed in rewrite" : "Deleted in rewrite"].join("\n");
+  return "Added in rewrite";
+}
+
+function diffChangeAnchors(oldText: string | undefined, currentText: string): ChangeAnchor[] {
+  if (!oldText || oldText === currentText) return [];
+  const oldWords = wordTokens(oldText);
+  const currentWords = wordTokens(currentText);
+  if (!oldWords.length || !currentWords.length || oldWords.length * currentWords.length > 2_000_000) {
+    const fallback = basicChangeAnchor(oldText, currentText);
+    return fallback ? [fallback] : [];
+  }
+
+  const columnCount = currentWords.length + 1;
+  const lcs = new Uint16Array((oldWords.length + 1) * columnCount);
+  for (let oldIndex = 1; oldIndex <= oldWords.length; oldIndex += 1) {
+    for (let currentIndex = 1; currentIndex <= currentWords.length; currentIndex += 1) {
+      const offset = oldIndex * columnCount + currentIndex;
+      if (oldWords[oldIndex - 1].text === currentWords[currentIndex - 1].text) {
+        lcs[offset] = lcs[(oldIndex - 1) * columnCount + currentIndex - 1] + 1;
+      } else {
+        lcs[offset] = Math.max(lcs[(oldIndex - 1) * columnCount + currentIndex], lcs[oldIndex * columnCount + currentIndex - 1]);
+      }
+    }
+  }
+
+  const operations: Array<{ type: "same" | "delete" | "insert"; oldIndex?: number; currentIndex?: number }> = [];
+  let oldIndex = oldWords.length;
+  let currentIndex = currentWords.length;
+  while (oldIndex > 0 || currentIndex > 0) {
+    if (oldIndex > 0 && currentIndex > 0 && oldWords[oldIndex - 1].text === currentWords[currentIndex - 1].text) {
+      operations.push({ type: "same", oldIndex: oldIndex - 1, currentIndex: currentIndex - 1 });
+      oldIndex -= 1;
+      currentIndex -= 1;
+    } else if (
+      currentIndex > 0 &&
+      (oldIndex === 0 || lcs[oldIndex * columnCount + currentIndex - 1] >= lcs[(oldIndex - 1) * columnCount + currentIndex])
+    ) {
+      operations.push({ type: "insert", currentIndex: currentIndex - 1 });
+      currentIndex -= 1;
+    } else {
+      operations.push({ type: "delete", oldIndex: oldIndex - 1 });
+      oldIndex -= 1;
+    }
+  }
+  operations.reverse();
+
+  const anchors: ChangeAnchor[] = [];
+  let cursor = 0;
+  let lastCurrentEnd = 0;
+  while (cursor < operations.length) {
+    const operation = operations[cursor];
+    if (operation.type === "same") {
+      lastCurrentEnd = currentWords[operation.currentIndex ?? 0]?.end ?? lastCurrentEnd;
+      cursor += 1;
+      continue;
+    }
+
+    const deleted: number[] = [];
+    const inserted: number[] = [];
+    while (cursor < operations.length && operations[cursor].type !== "same") {
+      const item = operations[cursor];
+      if (item.type === "delete" && item.oldIndex !== undefined) deleted.push(item.oldIndex);
+      if (item.type === "insert" && item.currentIndex !== undefined) inserted.push(item.currentIndex);
+      cursor += 1;
+    }
+
+    const oldStart = deleted.length ? oldWords[Math.min(...deleted)].start : 0;
+    const oldEnd = deleted.length ? oldWords[Math.max(...deleted)].end : oldStart;
+    const oldChanged = oldText.slice(oldStart, oldEnd);
+    if (inserted.length) {
+      const start = currentWords[Math.min(...inserted)].start;
+      const end = currentWords[Math.max(...inserted)].end;
+      anchors.push({ text: changeCardText(oldChanged, true), span: { start, end } });
+      lastCurrentEnd = end;
+    } else if (deleted.length) {
+      const nextSame = operations.slice(cursor).find((item) => item.type === "same" && item.currentIndex !== undefined);
+      const deletionAt = lastCurrentEnd || (nextSame?.currentIndex !== undefined ? currentWords[nextSame.currentIndex].start : 0);
+      anchors.push({ text: changeCardText(oldChanged, false), deletionAt });
+    }
+  }
+
+  return anchors;
+}
+
+function anchorsOverlap(a: ChangeAnchor, b: ChangeAnchor) {
+  if (a.span && b.span) return a.span.end > b.span.start && a.span.start < b.span.end;
+  if (a.span && b.deletionAt !== undefined) return b.deletionAt >= a.span.start && b.deletionAt <= a.span.end;
+  if (a.deletionAt !== undefined && b.span) return a.deletionAt >= b.span.start && a.deletionAt <= b.span.end;
+  if (a.deletionAt !== undefined && b.deletionAt !== undefined) return Math.abs(a.deletionAt - b.deletionAt) <= 4;
+  return false;
+}
+
+function rowAnchorX(pdf: jsPDF, row: AnnotatedRow, anchor: Pick<ChangeAnchor, "span" | "deletionAt">) {
+  const textLeft = rowTextLeft(pdf, row);
+  if (anchor.span) {
+    const start = Math.max(0, anchor.span.start - row.rangeStart);
+    const end = Math.min(row.text.length, anchor.span.end - row.rangeStart);
+    const prefix = row.text.slice(0, start);
+    const highlighted = row.text.slice(start, Math.max(start, end));
+    return textLeft + pdf.getTextWidth(prefix) + pdf.getTextWidth(highlighted) / 2;
+  }
+  if (anchor.deletionAt !== undefined) {
+    const position = Math.max(0, Math.min(row.text.length, anchor.deletionAt - row.rangeStart));
+    return textLeft + pdf.getTextWidth(row.text.slice(0, position));
+  }
+  return textLeft;
 }
 
 function drawAnnotationCard(pdf: jsPDF, text: string, x: number, y: number, width: number) {
@@ -195,57 +473,117 @@ function drawAnnotationCard(pdf: jsPDF, text: string, x: number, y: number, widt
 
 function drawAnnotatedScene(
   pdf: jsPDF,
-  title: string,
+  sceneOrder: number,
   sceneText: string,
   notes: ReviewNote[],
-  changeAnnotations: string[] = [],
+  currentVersionId: string,
+  oldVersionsById: Map<string, string>,
+  baseVersionText?: string,
 ) {
-  const scriptX = 18;
-  const scriptY = 25;
-  const scriptWidth = 118;
-  const noteX = 148;
-  const noteY = 20;
-  const noteWidth = 44;
+  const scriptX = 34;
+  const sceneNumberX = 27;
+  const scriptY = 24;
+  const scriptWidth = 106;
+  const noteX = 154;
+  const noteY = 18;
+  const noteWidth = 38;
+  const noteRailX = 148;
   const lineHeight = 5;
-  const maxRows = 49;
-  const rows = wrapSceneLines(pdf, sceneText, scriptWidth);
-  const noteAnchors = notes.map((note) => ({ note, line: noteAnchorLine(note, sceneText, note.versionId) }));
-  const totalPages = Math.max(1, Math.ceil(rows.length / maxRows));
+  const pageBottom = 272;
+  pdf.setFont("courier", "normal");
+  pdf.setFontSize(10);
+  const rows = layoutAnnotatedRows(pdf, sceneText);
+  const noteAnchors: ChangeAnchor[] = notes.flatMap((note) => {
+    const anchor = mappedNoteAnchor(note, oldVersionsById.get(note.versionId), sceneText, currentVersionId);
+    return anchor ? [{ text: noteCardText(note), ...anchor }] : [];
+  });
+  const changeAnchors = diffChangeAnchors(baseVersionText, sceneText).filter((change) => !noteAnchors.some((noteAnchor) => anchorsOverlap(change, noteAnchor)));
+  noteAnchors.push(...changeAnchors);
 
-  for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
-    const pageRows = rows.slice(pageIndex * maxRows, (pageIndex + 1) * maxRows);
-    const startLine = pageRows[0]?.sourceLine ?? 0;
-    const endLine = pageRows.at(-1)?.sourceLine ?? startLine;
+  const pages: AnnotatedRow[][] = [[]];
+  let pageY = scriptY;
+  rows.forEach((row) => {
+    const extraRoom = row.element === "Character" ? lineHeight * 2 : 0;
+    if (pages.at(-1)!.length && pageY + row.gap + lineHeight + extraRoom > pageBottom) {
+      pages.push([]);
+      pageY = scriptY;
+    }
+    pages.at(-1)!.push(row);
+    pageY += row.gap + lineHeight;
+  });
+
+  for (const pageRows of pages) {
     pdf.addPage();
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8);
-    pdf.setTextColor(76, 86, 98);
-    pdf.text(`${title}${totalPages > 1 ? ` (${pageIndex + 1}/${totalPages})` : ""}`, scriptX, 14, { maxWidth: 170 });
-    pdf.setFillColor(244, 247, 248);
-    pdf.setDrawColor(213, 222, 228);
-    pdf.roundedRect(noteX - 4, 16, 52, 260, 2, 2, "FD");
-
     pdf.setFont("courier", "normal");
     pdf.setFontSize(10);
     pdf.setTextColor(20, 20, 20);
-    pageRows.forEach((row, rowIndex) => {
-      pdf.text(row.text || " ", scriptX, scriptY + rowIndex * lineHeight);
+    const rowY = new Map<AnnotatedRow, number>();
+    let y = scriptY;
+    let sceneNumberDrawn = false;
+    pageRows.forEach((row) => {
+      y += row.gap;
+      rowY.set(row, y);
+      const rowHighlights = noteAnchors.filter(({ span }) => span && span.end > row.rangeStart && span.start < row.rangeEnd);
+      rowHighlights.forEach(({ span }) => {
+        if (!span) return;
+        const start = Math.max(0, span.start - row.rangeStart);
+        const end = Math.min(row.text.length, span.end - row.rangeStart);
+        if (end <= start) return;
+        const prefix = row.text.slice(0, start);
+        const highlighted = row.text.slice(start, end);
+        const textLeft = rowTextLeft(pdf, row);
+        pdf.setFillColor(255, 244, 151);
+        pdf.rect(
+          textLeft + pdf.getTextWidth(prefix) - 0.6,
+          y - 3.5,
+          Math.max(1.4, pdf.getTextWidth(highlighted) + 1.2),
+          4.6,
+          "F",
+        );
+        pdf.setFillColor(244, 247, 248);
+      });
+      if (!sceneNumberDrawn && row.element === "Scene Heading") {
+        pdf.text(String(sceneOrder), sceneNumberX, y, { align: "right" });
+        sceneNumberDrawn = true;
+      }
+      pdf.text(row.text || " ", row.x, y, { align: row.align, maxWidth: row.width });
+      y += lineHeight;
     });
 
-    const cards: { text: string; anchorY: number }[] = [];
-    if (pageIndex === 0) changeAnnotations.forEach((text) => cards.push({ text, anchorY: scriptY }));
+    const cards: { text: string; anchorX: number; anchorY: number }[] = [];
     noteAnchors
-      .filter(({ line }) => line >= startLine && line <= endLine)
-      .forEach(({ note, line }) => {
-        const rowIndex = pageRows.findIndex((row) => row.sourceLine >= line);
-        cards.push({ text: noteCardText(note), anchorY: scriptY + Math.max(rowIndex, 0) * lineHeight });
+      .filter(({ span, deletionAt }) =>
+        pageRows.some((row) =>
+          span
+            ? span.end > row.rangeStart && span.start < row.rangeEnd
+            : deletionAt !== undefined && deletionAt >= row.rangeStart && deletionAt <= row.rangeEnd,
+        ),
+      )
+      .forEach(({ text, span, deletionAt }) => {
+        const row =
+          pageRows.find((candidate) =>
+            span
+              ? span.start <= candidate.rangeEnd && span.end >= candidate.rangeStart
+              : deletionAt !== undefined && deletionAt >= candidate.rangeStart && deletionAt <= candidate.rangeEnd,
+          ) ?? pageRows[0];
+        cards.push({
+          text,
+          anchorX: row ? rowAnchorX(pdf, row, { span, deletionAt }) : scriptX + scriptWidth,
+          anchorY: row ? rowY.get(row) ?? scriptY : scriptY,
+        });
       });
+
+    if (cards.length) {
+      pdf.setFillColor(244, 247, 248);
+      pdf.setDrawColor(213, 222, 228);
+      pdf.roundedRect(noteRailX, 18, 48, 258, 2, 2, "FD");
+    }
 
     let cardY = noteY;
     cards.forEach((card) => {
       const height = drawAnnotationCard(pdf, card.text, noteX, cardY, noteWidth);
       pdf.setDrawColor(151, 171, 183);
-      pdf.line(scriptX + scriptWidth + 2, card.anchorY - 1, noteX - 4, cardY + 6);
+      pdf.line(Math.min(card.anchorX + 2, noteRailX - 3), card.anchorY - 1, noteRailX, cardY + 6);
       cardY += height + 5;
     });
   }
@@ -268,18 +606,16 @@ function drawAnnotatedScript(pdf: jsPDF, project: Project, data: AppData, change
 
   for (const { scene, version } of scenes) {
     const notes = sceneNotes(scene, data);
-    const changeAnnotations = changesOnly || version.versionNumber > 1
-      ? [
-          [
-            `Changed scene / V${version.versionNumber}`,
-            version.changeSummary || "Scene changed from the previous version.",
-            version.basedOnVersionId ? `Based on version: ${version.basedOnVersionId}` : "",
-          ]
-            .filter(Boolean)
-            .join("\n"),
-        ]
-      : [];
-    drawAnnotatedScene(pdf, `${scene.order}  ${scene.heading}`, version.text, notes, changeAnnotations);
+    const oldVersionsById = new Map(data.versions.filter((item) => item.sceneId === scene.sceneId).map((item) => [item.versionId, item.text]));
+    drawAnnotatedScene(
+      pdf,
+      scene.order,
+      version.text,
+      notes,
+      version.versionId,
+      oldVersionsById,
+      version.basedOnVersionId ? oldVersionsById.get(version.basedOnVersionId) : undefined,
+    );
   }
 }
 

@@ -2,6 +2,8 @@ import type { DraftBlock, FadeTiming, VisibilityRule, WritingMode } from "../typ
 
 export interface VisibleDraftBlock {
   block: DraftBlock;
+  displayText?: string;
+  fragmentId?: string;
   faded: boolean;
 }
 
@@ -11,6 +13,51 @@ function visibleCount(rule: VisibilityRule) {
   if (rule === "last4") return 4;
   if (rule === "last5") return 5;
   return 1;
+}
+
+function visualLineWidth(block: DraftBlock) {
+  if (block.element === "Dialogue") return 36;
+  if (block.element === "Parenthetical") return 30;
+  if (block.element === "Character" || block.element === "Transition") return 28;
+  return 62;
+}
+
+function splitVisualLines(block: DraftBlock) {
+  const width = visualLineWidth(block);
+  const paragraphs = block.text.split("\n");
+  const lines: string[] = [];
+
+  paragraphs.forEach((paragraph) => {
+    const words = paragraph.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      lines.push("");
+      return;
+    }
+
+    let line = "";
+    words.forEach((word) => {
+      const next = line ? `${line} ${word}` : word;
+      if (next.length > width && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = next;
+      }
+    });
+    if (line) lines.push(line);
+  });
+
+  return lines.length ? lines : [block.text];
+}
+
+function visualFragments(blocks: DraftBlock[]) {
+  return blocks.flatMap((block) =>
+    splitVisualLines(block).map((displayText, index) => ({
+      block,
+      displayText,
+      fragmentId: `${block.blockId}-${index}`,
+    })),
+  );
 }
 
 function currentAndPreviousSection(blocks: DraftBlock[], headingElement: DraftBlock["element"]) {
@@ -38,15 +85,11 @@ export function visibleDraftBlocks(blocks: DraftBlock[], writingMode: WritingMod
 }
 
 function heldLineWindow(blocks: DraftBlock[], writingMode: WritingMode, visibility: VisibilityRule) {
-  const sectionBlocks = currentSection(blocks, writingMode);
+  const sectionBlocks = visualFragments(currentSection(blocks, writingMode));
   const count = visibleCount(visibility);
-  if (sectionBlocks.length === 0) return [];
-  const currentStart = Math.floor((sectionBlocks.length - 1) / count) * count;
-  const currentComplete = sectionBlocks.length - currentStart === count;
-  const previousStart = Math.max(0, currentStart - count);
-  return sectionBlocks.slice(previousStart).map((block, index) => ({
-    block,
-    faded: currentComplete && previousStart < currentStart && previousStart + index < currentStart,
+  return sectionBlocks.slice(-count).map((item) => ({
+    ...item,
+    faded: false,
   }));
 }
 
@@ -76,8 +119,11 @@ export function visibleDraftWindow(
     return heldSectionWindow(blocks, writingMode === "script" ? "Scene Heading" : "Chapter Heading");
   }
   if (fadeTiming === "nextBlock") return heldLineWindow(blocks, writingMode, visibility);
-  return visibleDraftBlocks(blocks, writingMode, visibility).map((block) => ({
-    block,
+  const visibleItems = sectionContext
+    ? visibleDraftBlocks(blocks, writingMode, visibility).map((block) => ({ block }))
+    : visualFragments(currentSection(blocks, writingMode)).slice(-visibleCount(visibility));
+  return visibleItems.map((item) => ({
+    ...item,
     faded: timedFadeReached,
   }));
 }

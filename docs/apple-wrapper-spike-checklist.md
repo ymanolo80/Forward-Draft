@@ -16,7 +16,7 @@ Temporary bundle identifier: `com.ymanolo80.forwarddraft`
 
 ## First Simulator Run
 
-- [ ] Open `ios/App/App.xcworkspace` in Xcode.
+- [ ] Open `ios/App/App.xcodeproj` in Xcode.
 - [ ] Select an iPad simulator.
 - [x] Build and run Forward Draft.
 - [x] Confirm the app launches without network access.

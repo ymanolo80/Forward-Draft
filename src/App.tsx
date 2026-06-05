@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { ReviewMode } from "./components/ReviewMode";
 import { RewriteMode } from "./components/RewriteMode";
 import { WriteMode } from "./components/WriteMode";
 import { exportChangesPdf, exportFountainFile, exportFullPdf, exportProjectFile, exportText } from "./lib/exports";
-import { readTextFile } from "./lib/fileService";
+import { isNativeFileServiceAvailable, openNativeTextFile, readTextFile } from "./lib/fileService";
 import { createId, nowIso } from "./lib/ids";
-import { importFdxIntoData, importFountainIntoData, importTxtIntoData, openProjectFileIntoData } from "./lib/projectIO";
+import {
+  importFdxIntoData,
+  importFountainIntoData,
+  importTxtIntoData,
+  openProjectFileIntoData,
+  type TextFileSource,
+} from "./lib/projectIO";
 import { createProject } from "./lib/seed";
 import { emptyData, loadData, saveData } from "./lib/storage";
 import type { AppData, AppMode, CoverPage, FadeTiming, FontFamilyChoice, FontSettings, Project, VisibilityRule, WritingMode } from "./types";
@@ -312,13 +318,13 @@ export function App() {
     });
   };
 
-  const openProjectFile = async (file?: File) => {
-    if (!file) return;
+  const openProjectSource = async (source?: TextFileSource) => {
+    if (!source) return;
     try {
-      const source = await readTextFile(file);
       const result = openProjectFileIntoData(data, source);
       setData(result.data);
       setMode("write");
+      setOptionsOpen(false);
       if (result.importedAsCopy) {
         alert(`Opened "${result.originalTitle}" as "${result.title}" because that project already exists here.`);
       }
@@ -327,39 +333,72 @@ export function App() {
     }
   };
 
-  const importFountainFile = async (file?: File) => {
+  const openProjectFile = async (file?: File) => {
     if (!file) return;
+    await openProjectSource(await readTextFile(file));
+  };
+
+  const importFountainSource = async (source?: TextFileSource) => {
+    if (!source) return;
     try {
-      const source = await readTextFile(file);
       const result = importFountainIntoData(data, source);
       setData(result.data);
       setMode("review");
+      setOptionsOpen(false);
     } catch (error) {
       alert(error instanceof Error ? error.message : "This Fountain file could not be imported.");
     }
   };
 
-  const importTxtFile = async (file?: File) => {
+  const importFountainFile = async (file?: File) => {
     if (!file) return;
+    await importFountainSource(await readTextFile(file));
+  };
+
+  const importTxtSource = async (source?: TextFileSource) => {
+    if (!source) return;
     try {
-      const source = await readTextFile(file);
       const result = importTxtIntoData(data, source);
       setData(result.data);
       setMode("review");
+      setOptionsOpen(false);
     } catch (error) {
       alert(error instanceof Error ? error.message : "This TXT file could not be imported.");
     }
   };
 
-  const importFdxFile = async (file?: File) => {
+  const importTxtFile = async (file?: File) => {
     if (!file) return;
+    await importTxtSource(await readTextFile(file));
+  };
+
+  const importFdxSource = async (source?: TextFileSource) => {
+    if (!source) return;
     try {
-      const source = await readTextFile(file);
       const result = importFdxIntoData(data, source);
       setData(result.data);
       setMode("review");
+      setOptionsOpen(false);
     } catch (error) {
       alert(error instanceof Error ? error.message : "This Final Draft file could not be imported.");
+    }
+  };
+
+  const importFdxFile = async (file?: File) => {
+    if (!file) return;
+    await importFdxSource(await readTextFile(file));
+  };
+
+  const openNativeFile = async (event: MouseEvent, extensions: string[], handler: (source?: TextFileSource) => Promise<void>) => {
+    if (!isNativeFileServiceAvailable()) return;
+    event.preventDefault();
+    const source = await openNativeTextFile(extensions);
+    if (source) {
+      await handler(source);
+      return;
+    }
+    if (source === undefined) {
+      event.currentTarget.querySelector("input")?.click();
     }
   };
 
@@ -454,7 +493,7 @@ export function App() {
                   <strong>File</strong>
                   <button onClick={() => { createNew("script"); setOptionsOpen(false); }}>New Script Project</button>
                   <button onClick={() => { createNew("freewrite"); setOptionsOpen(false); }}>New Freewriting Project</button>
-                  <label className="menu-file">
+                  <label className="menu-file" onClick={(event) => openNativeFile(event, ["frdx"], openProjectSource)}>
                     Open Project File
                     <input
                       name="import-project"
@@ -467,7 +506,7 @@ export function App() {
                       }}
                     />
                   </label>
-                  <label className="menu-file">
+                  <label className="menu-file" onClick={(event) => openNativeFile(event, ["fountain"], importFountainSource)}>
                     Import Fountain Script
                     <input
                       name="import-fountain"
@@ -480,7 +519,7 @@ export function App() {
                       }}
                     />
                   </label>
-                  <label className="menu-file">
+                  <label className="menu-file" onClick={(event) => openNativeFile(event, ["txt"], importTxtSource)}>
                     Import TXT Script
                     <input
                       name="import-txt"
@@ -493,12 +532,11 @@ export function App() {
                       }}
                     />
                   </label>
-                  <label className="menu-file">
+                  <label className="menu-file" onClick={(event) => openNativeFile(event, ["fdx", "xml"], importFdxSource)}>
                     Import Final Draft
                     <input
                       name="import-fdx"
                       type="file"
-                      accept=".fdx,.xml,application/xml,text/xml"
                       onChange={(event) => {
                         importFdxFile(event.target.files?.[0]);
                         event.currentTarget.value = "";

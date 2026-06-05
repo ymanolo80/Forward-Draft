@@ -87,7 +87,7 @@ export const VisualInlineEditor = forwardRef<VisualInlineEditorHandle, VisualInl
 
   useLayoutEffect(() => {
     const root = rootRef.current;
-    if (!root || lastTextRef.current === text || document.activeElement === root) return;
+    if (!root || lastTextRef.current === text) return;
     root.replaceChildren();
     appendInlineText(root, text);
     lastTextRef.current = text;

@@ -232,6 +232,17 @@ export function WriteMode({
     inputRef.current?.formatSelection(marker);
   };
 
+  const chooseFreewriteElement = (nextElement: ScriptElement) => {
+    if (activeText.trim() && element !== nextElement) {
+      commitBlock(activeText, nextElement);
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+      return;
+    }
+    setElement(nextElement);
+    if (nextElement !== "Chapter Heading") setSectionPlacement("append");
+    inputRef.current?.focus();
+  };
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const key = event.key.toLowerCase();
     if ((event.metaKey || event.ctrlKey) && (key === "z" || key === "y")) {
@@ -282,12 +293,12 @@ export function WriteMode({
           <div className="page-shell write-shell">
             <article className="script-page write-page" onClick={() => inputRef.current?.focus()}>
               <div className="locked-draft" aria-label="Recent draft text">
-                {recentBlocks.map(({ block, faded }) => (
+                {recentBlocks.map(({ block, displayText, faded, fragmentId }) => (
                   <div
                     className={`script-line ${elementClass(block.element)} ${faded ? "faded" : ""}`}
-                    key={block.blockId}
+                    key={fragmentId ?? block.blockId}
                   >
-                    <span><InlineFountainText text={blockToFountain(block)} /></span>
+                    <span><InlineFountainText text={displayText ?? blockToFountain(block)} /></span>
                   </div>
                 ))}
               </div>
@@ -333,19 +344,13 @@ export function WriteMode({
               <div className="segmented">
                 <button
                   className={element !== "Chapter Heading" ? "active" : ""}
-                  onClick={() => {
-                    setElement("General Text");
-                    inputRef.current?.focus();
-                  }}
+                  onClick={() => chooseFreewriteElement("General Text")}
                 >
                   Paragraph
                 </button>
                 <button
                   className={element === "Chapter Heading" ? "active" : ""}
-                  onClick={() => {
-                    setElement("Chapter Heading");
-                    inputRef.current?.focus();
-                  }}
+                  onClick={() => chooseFreewriteElement("Chapter Heading")}
                 >
                   Chapter
                 </button>
@@ -353,39 +358,41 @@ export function WriteMode({
             </section>
           )}
 
-          <section className="tool-section">
-            <h3>{project.writingMode === "script" ? "New Scene Placement" : "New Chapter Placement"}</h3>
-            <label>
-              Write as
-              <select
-                name="section-placement"
-                value={sectionPlacement}
-                onChange={(event) => setSectionPlacement(event.target.value as DraftInsertPlacement)}
-              >
-                <option value="append">Next {sectionName}</option>
-                <option value="before">Before existing {sectionName}</option>
-                <option value="after">After existing {sectionName}</option>
-              </select>
-            </label>
-            {sectionPlacement !== "append" && placementTargets.length > 0 && (
+          {(project.writingMode === "script" || element === "Chapter Heading") && (
+            <section className="tool-section">
+              <h3>{project.writingMode === "script" ? "New Scene Placement" : "New Chapter Placement"}</h3>
               <label>
-                Existing {sectionName}
+                Write as
                 <select
-                  name="section-placement-target"
-                  value={placementSceneId}
-                  onChange={(event) => setPlacementSceneId(event.target.value)}
+                  name="section-placement"
+                  value={sectionPlacement}
+                  onChange={(event) => setSectionPlacement(event.target.value as DraftInsertPlacement)}
                 >
-                  {placementTargets.map((scene) => (
-                    <option key={scene.sceneId} value={scene.sceneId}>
-                      {project.writingMode === "script"
-                        ? `${scene.order}  ${scene.heading}`
-                        : `Chapter ${scene.order}: ${scene.heading}`}
-                    </option>
-                  ))}
+                  <option value="append">Next {sectionName}</option>
+                  <option value="before">Before existing {sectionName}</option>
+                  <option value="after">After existing {sectionName}</option>
                 </select>
               </label>
-            )}
-          </section>
+              {sectionPlacement !== "append" && placementTargets.length > 0 && (
+                <label>
+                  Existing {sectionName}
+                  <select
+                    name="section-placement-target"
+                    value={placementSceneId}
+                    onChange={(event) => setPlacementSceneId(event.target.value)}
+                  >
+                    {placementTargets.map((scene) => (
+                      <option key={scene.sceneId} value={scene.sceneId}>
+                        {project.writingMode === "script"
+                          ? `${scene.order}  ${scene.heading}`
+                          : `Chapter ${scene.order}: ${scene.heading}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </section>
+          )}
 
           <section className="tool-section">
             <h3>Visible Text Window</h3>

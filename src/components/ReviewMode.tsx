@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type PointerEvent } from "react";
 import { ToolFontControls } from "./ToolFontControls";
 import { InlineFountainText } from "./InlineFountainText";
 import type { AppData, FontSettings, Highlight, Project, ReviewNote, Scene, SceneVersion } from "../types";
@@ -134,8 +134,10 @@ export function ReviewMode({
   const [showScenes, setShowScenes] = useState(false);
   const [showNotes, setShowNotes] = useState(true);
   const [reordering, setReordering] = useState(false);
-  const [dragSceneId, setDragSceneId] = useState<string | undefined>();
   const [dropIndex, setDropIndex] = useState<number | undefined>();
+  const [pointerDragSceneId, setPointerDragSceneId] = useState<string | undefined>();
+  const [pointerDragStartY, setPointerDragStartY] = useState(0);
+  const [pointerDragDeltaY, setPointerDragDeltaY] = useState(0);
   const [selection, setSelection] = useState<SelectionInfo | undefined>();
   const [composerOpen, setComposerOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
@@ -145,7 +147,7 @@ export function ReviewMode({
 
   useEffect(() => {
     const onToggleSceneList = () => {
-      if (window.matchMedia("(max-width: 1180px)").matches) {
+      if (window.matchMedia("(max-width: 900px)").matches) {
         setShowScenes(true);
         return;
       }
@@ -182,6 +184,33 @@ export function ReviewMode({
     });
   };
 
+  const makeComparedVersionCurrent = () => {
+    if (!scene || !current || !compareTarget) return;
+    const updatedAt = nowIso();
+    setData({
+      ...data,
+      versions: data.versions.map((version) =>
+        version.sceneId === scene.sceneId
+          ? { ...version, isCurrent: version.versionId === compareTarget.versionId }
+          : version,
+      ),
+      projects: data.projects.map((candidate) =>
+        candidate.projectId === project.projectId
+          ? {
+              ...candidate,
+              updatedAt,
+              scenes: candidate.scenes.map((item) =>
+                item.sceneId === scene.sceneId
+                  ? { ...item, currentVersionId: compareTarget.versionId, updatedAt }
+                  : item,
+              ),
+            }
+          : candidate,
+      ),
+    });
+    setCompareVersionId(current.versionId);
+  };
+
   const captureSelection = (targetScene: Scene, targetVersion: SceneVersion, root: HTMLElement) => {
     const selected = selectedTextRange(root, targetVersion.text);
     if (!selected) {
@@ -196,6 +225,10 @@ export function ReviewMode({
       rangeEnd: selected.rangeEnd,
     });
     setSelectedSceneId(targetScene.sceneId);
+  };
+
+  const captureSelectionSoon = (targetScene: Scene, targetVersion: SceneVersion, root: HTMLElement) => {
+    window.setTimeout(() => captureSelection(targetScene, targetVersion, root), 80);
   };
 
   const openComposer = () => {
@@ -350,6 +383,34 @@ export function ReviewMode({
     });
   };
 
+  const pointerDropIndex = (event: PointerEvent<HTMLElement>) => {
+    const list = event.currentTarget.closest(".scene-drawer-list");
+    if (!list) return undefined;
+    const rows = [...list.querySelectorAll<HTMLElement>("[data-scene-list-index]")]
+      .filter((node) => node.dataset.sceneListId !== pointerDragSceneId)
+      .sort((a, b) => Number(a.dataset.sceneListIndex) - Number(b.dataset.sceneListIndex));
+
+    for (const row of rows) {
+      const rect = row.getBoundingClientRect();
+      if (event.clientY < rect.top + rect.height / 2) {
+        return Number(row.dataset.sceneListIndex);
+      }
+    }
+    return sortedScenes.length;
+  };
+
+  const finishPointerReorder = (event: PointerEvent<HTMLElement>) => {
+    if (!pointerDragSceneId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    const nextDropIndex = pointerDropIndex(event) ?? dropIndex;
+    if (nextDropIndex !== undefined) reorderScenes(pointerDragSceneId, nextDropIndex);
+    setPointerDragSceneId(undefined);
+    setPointerDragDeltaY(0);
+    setDropIndex(undefined);
+  };
+
   const sceneLabel = project.writingMode === "freewrite" ? "Chapter" : "Scene";
   const sceneLabelPlural = project.writingMode === "freewrite" ? "Chapters" : "Scenes";
 
@@ -359,44 +420,54 @@ export function ReviewMode({
     return (
       <Fragment key={item.sceneId}>
         {reordering && dropIndex === index && <div className="drop-line" />}
-        <button
-          className={`${scene && item.sceneId === scene.sceneId ? "selected" : ""} ${reordering ? "reorderable" : ""}`}
-          draggable={reordering}
-          onClick={() => openScene(item.sceneId)}
-          onDragStart={() => setDragSceneId(item.sceneId)}
-          onDragOver={(event) => {
-            if (!reordering) return;
-            event.preventDefault();
-            const rect = event.currentTarget.getBoundingClientRect();
-            setDropIndex(index + (event.clientY > rect.top + rect.height / 2 ? 1 : 0));
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            if (dragSceneId !== undefined && dropIndex !== undefined) reorderScenes(dragSceneId, dropIndex);
-            setDragSceneId(undefined);
-            setDropIndex(undefined);
-          }}
-          onDragEnd={() => {
-            setDragSceneId(undefined);
-            setDropIndex(undefined);
-          }}
-        >
-          {reordering && <span className="grab-handle" aria-hidden="true">::</span>}
-          <strong className="scene-list-title">
-            {project.writingMode === "script" ? (
-              <>
-                <span className="scene-number">{item.order}</span>
-                <span className="scene-list-heading">{item.heading}</span>
-              </>
-            ) : (
-              <>
-                <span className="scene-number">{item.order}</span>
-                <span className="scene-list-heading">{item.heading}</span>
-              </>
-            )}
-          </strong>
-          <small>{item.status} · V{version?.versionNumber ?? 1} · {noteCount} notes</small>
-        </button>
+        <div className={`scene-list-row ${reordering ? "is-reordering" : ""}`}>
+          <button
+            className={`${scene && item.sceneId === scene.sceneId ? "selected" : ""} ${reordering ? "reorderable" : ""} ${
+              pointerDragSceneId === item.sceneId ? "is-dragging" : ""
+            }`}
+            data-scene-list-index={index}
+            data-scene-list-id={item.sceneId}
+            onClick={() => {
+              if (!reordering) openScene(item.sceneId);
+            }}
+            onPointerDown={(event) => {
+              if (!reordering) return;
+              event.preventDefault();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              setPointerDragSceneId(item.sceneId);
+              setPointerDragStartY(event.clientY);
+              setPointerDragDeltaY(0);
+              setDropIndex(index);
+            }}
+            onPointerMove={(event) => {
+              if (!reordering || !pointerDragSceneId) return;
+              setPointerDragDeltaY(event.clientY - pointerDragStartY);
+              const nextDropIndex = pointerDropIndex(event);
+              if (nextDropIndex !== undefined) setDropIndex(nextDropIndex);
+            }}
+            onPointerUp={finishPointerReorder}
+            onPointerCancel={(event) => {
+              if (pointerDragSceneId && event.currentTarget.hasPointerCapture(event.pointerId)) {
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }
+              setPointerDragSceneId(undefined);
+              setPointerDragDeltaY(0);
+              setDropIndex(undefined);
+            }}
+            style={
+              pointerDragSceneId === item.sceneId
+                ? { transform: `translateY(${pointerDragDeltaY}px)` }
+                : undefined
+            }
+          >
+            {reordering && <span className="grab-handle" aria-hidden="true">::</span>}
+            <strong className="scene-list-title">
+              <span className="scene-number">{item.order}</span>
+              <span className="scene-list-heading">{item.heading}</span>
+            </strong>
+            <small>{item.status} · V{version?.versionNumber ?? 1} · {noteCount} notes</small>
+          </button>
+        </div>
         {reordering && dropIndex === sortedScenes.length && index === sortedScenes.length - 1 && <div className="drop-line" />}
       </Fragment>
     );
@@ -415,6 +486,8 @@ export function ReviewMode({
         <div
           className="read-only-script freewrite-display"
           onMouseUp={(event) => captureSelection(item, version, event.currentTarget)}
+          onPointerUp={(event) => captureSelectionSoon(item, version, event.currentTarget)}
+          onTouchEnd={(event) => captureSelectionSoon(item, version, event.currentTarget)}
           onKeyUp={(event) => captureSelection(item, version, event.currentTarget)}
           tabIndex={0}
           aria-label={label}
@@ -438,6 +511,8 @@ export function ReviewMode({
       <div
         className="read-only-script script-display"
         onMouseUp={(event) => captureSelection(item, version, event.currentTarget)}
+        onPointerUp={(event) => captureSelectionSoon(item, version, event.currentTarget)}
+        onTouchEnd={(event) => captureSelectionSoon(item, version, event.currentTarget)}
         onKeyUp={(event) => captureSelection(item, version, event.currentTarget)}
         tabIndex={0}
         aria-label={label}
@@ -495,7 +570,7 @@ export function ReviewMode({
               <>
                 {compare && compareTarget && (
                   <article className="script-page compare-page">
-                    <div className="script-page-meta">Compare · V{compareTarget.versionNumber}</div>
+                    <div className="script-page-meta">Compare version · V{compareTarget.versionNumber}</div>
                     {renderReadOnlyScript(
                       scene,
                       compareTarget,
@@ -507,6 +582,7 @@ export function ReviewMode({
                 )}
 
                 <article className="script-page review-page">
+                  {compare && compareTarget && <div className="script-page-meta">Current version · V{current.versionNumber}</div>}
                   {renderReadOnlyScript(scene, current, highlights, notes, "Read-only script page")}
                 </article>
               </>
@@ -559,22 +635,27 @@ export function ReviewMode({
                     Compare versions
                   </label>
                   {compare && versions.length > 1 && (
-                    <label>
-                      Version
-                      <select
-                        name="compare-version"
-                        value={compareTarget?.versionId ?? ""}
-                        onChange={(event) => setCompareVersionId(event.target.value)}
-                      >
-                        {versions
-                          .filter((version) => version.versionId !== current.versionId)
-                          .map((version) => (
-                            <option key={version.versionId} value={version.versionId}>
-                              Version {version.versionNumber}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
+                    <>
+                      <label>
+                        Version
+                        <select
+                          name="compare-version"
+                          value={compareTarget?.versionId ?? ""}
+                          onChange={(event) => setCompareVersionId(event.target.value)}
+                        >
+                          {versions
+                            .filter((version) => version.versionId !== current.versionId)
+                            .map((version) => (
+                              <option key={version.versionId} value={version.versionId}>
+                                Version {version.versionNumber}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <button className="validate-button" onClick={makeComparedVersionCurrent} disabled={!compareTarget}>
+                        Make Compared Current
+                      </button>
+                    </>
                   )}
                 </>
               )}

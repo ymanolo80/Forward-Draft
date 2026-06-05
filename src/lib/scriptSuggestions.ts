@@ -1,5 +1,5 @@
 import type { Project, SceneVersion, ScriptElement } from "../types";
-import { stripInlineFountain } from "./screenplay";
+import { parseScreenplayText, stripInlineFountain } from "./screenplay";
 
 const sceneHeadingPattern = /^(?:INT|EXT|EST|I\/E|INT\/EXT|EXT\/INT|INT\.\/EXT|EXT\.\/INT)[\s./]/i;
 const scenePrefixes = ["INT.", "EXT.", "INT./EXT.", "EXT./INT.", "EST."];
@@ -29,9 +29,18 @@ export function projectCharacterNames(project: Project, versions: SceneVersion[]
   const currentVersionIds = new Set(project.scenes.map((scene) => scene.currentVersionId));
   versions
     .filter((version) => currentVersionIds.has(version.versionId))
-    .flatMap((version) => version.text.split(/\r?\n/))
-    .filter(likelyCharacterName)
-    .forEach((name) => names.add(stripInlineFountain(name.trim()).toUpperCase()));
+    .forEach((version) => {
+      parseScreenplayText(version.text)
+        .filter((block) => block.element === "Character")
+        .forEach((block) => {
+          const name = stripInlineFountain(block.text.trim()).toUpperCase();
+          if (name) names.add(name);
+        });
+      version.text
+        .split(/\r?\n/)
+        .filter(likelyCharacterName)
+        .forEach((name) => names.add(stripInlineFountain(name.trim()).toUpperCase()));
+    });
 
   return [...names].sort((a, b) => a.localeCompare(b));
 }

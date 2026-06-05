@@ -71,7 +71,7 @@ describe("Write visible text window", () => {
     ]);
   });
 
-  it("holds a line window until the next equally sized window is complete", () => {
+  it("keeps a rolling line window when fading after the next block", () => {
     const firstSix = [
       block("Action", "One"),
       block("Action", "Two"),
@@ -81,16 +81,11 @@ describe("Write visible text window", () => {
       block("Action", "Six"),
     ];
     expect(visibleDraftWindow(firstSix.slice(0, 5), "script", "last3", "nextBlock", false).map((item) => [item.block.text, item.faded])).toEqual([
-      ["One", false],
-      ["Two", false],
       ["Three", false],
       ["Four", false],
       ["Five", false],
     ]);
     expect(visibleDraftWindow(firstSix, "script", "last3", "nextBlock", false).map((item) => [item.block.text, item.faded])).toEqual([
-      ["One", true],
-      ["Two", true],
-      ["Three", true],
       ["Four", false],
       ["Five", false],
       ["Six", false],

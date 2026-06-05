@@ -189,6 +189,8 @@ export function RewriteMode({
   const [queueOpen, setQueueOpen] = useState(() => !window.matchMedia("(max-width: 720px)").matches);
   const [selectedSceneId, setSelectedSceneId] = useState(project.scenes[0]?.sceneId);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [draftUndoStack, setDraftUndoStack] = useState<Record<string, string[]>>({});
+  const [draftRedoStack, setDraftRedoStack] = useState<Record<string, string[]>>({});
   const [rewriteElement, setRewriteElement] = useState<ScriptElement>("Action");
   const [activeRewriteLine, setActiveRewriteLine] = useState<{ sceneId: string; text: string }>();
   const refs = useRef<Record<string, HTMLElement | null>>({});
@@ -206,7 +208,7 @@ export function RewriteMode({
 
   useEffect(() => {
     const onToggleSceneList = () => {
-      if (window.matchMedia("(max-width: 1180px)").matches) {
+      if (window.matchMedia("(max-width: 900px)").matches) {
         setQueueOpen(true);
         return;
       }
@@ -244,7 +246,52 @@ export function RewriteMode({
   const selected = queue.find((item) => item?.scene.sceneId === selectedSceneId) ?? queue[0];
   const sectionLabel = project.writingMode === "freewrite" ? "Chapter" : "Scene";
   const selectedDraftText = selected ? drafts[selected.scene.sceneId] ?? selected.version?.text ?? "" : "";
+  const selectedSceneIdForHistory = selected?.scene.sceneId ?? "";
+  const canUndoRewriteDraft = selectedSceneIdForHistory ? (draftUndoStack[selectedSceneIdForHistory]?.length ?? 0) > 0 : false;
+  const canRedoRewriteDraft = selectedSceneIdForHistory ? (draftRedoStack[selectedSceneIdForHistory]?.length ?? 0) > 0 : false;
   const visibleScriptElements = scriptElements.filter((item) => item !== "Note" && item !== "Shot");
+
+  const updateDraftText = (sceneId: string, nextText: string) => {
+    setDrafts((current) => {
+      const previous = current[sceneId] ?? data.versions.find((version) => version.versionId === project.scenes.find((scene) => scene.sceneId === sceneId)?.currentVersionId)?.text ?? "";
+      if (previous === nextText) return current;
+      setDraftUndoStack((history) => ({ ...history, [sceneId]: [...(history[sceneId] ?? []), previous].slice(-100) }));
+      setDraftRedoStack((history) => ({ ...history, [sceneId]: [] }));
+      return { ...current, [sceneId]: nextText };
+    });
+  };
+
+  const undoRewrite = () => {
+    if (!selected) {
+      onUndo();
+      return;
+    }
+    const sceneId = selected.scene.sceneId;
+    const previous = draftUndoStack[sceneId]?.at(-1);
+    if (previous === undefined) {
+      onUndo();
+      return;
+    }
+    setDraftUndoStack((history) => ({ ...history, [sceneId]: (history[sceneId] ?? []).slice(0, -1) }));
+    setDraftRedoStack((history) => ({ ...history, [sceneId]: [...(history[sceneId] ?? []), selectedDraftText].slice(-100) }));
+    setDrafts((current) => ({ ...current, [sceneId]: previous }));
+  };
+
+  const redoRewrite = () => {
+    if (!selected) {
+      onRedo();
+      return;
+    }
+    const sceneId = selected.scene.sceneId;
+    const next = draftRedoStack[sceneId]?.at(-1);
+    if (next === undefined) {
+      onRedo();
+      return;
+    }
+    setDraftRedoStack((history) => ({ ...history, [sceneId]: (history[sceneId] ?? []).slice(0, -1) }));
+    setDraftUndoStack((history) => ({ ...history, [sceneId]: [...(history[sceneId] ?? []), selectedDraftText].slice(-100) }));
+    setDrafts((current) => ({ ...current, [sceneId]: next }));
+  };
 
   const markDone = (scene: Scene, text: string) => {
     const oldVersion = data.versions.find((version) => version.versionId === scene.currentVersionId);
@@ -281,6 +328,16 @@ export function RewriteMode({
       ),
     });
     setDrafts((current) => {
+      const next = { ...current };
+      delete next[scene.sceneId];
+      return next;
+    });
+    setDraftUndoStack((current) => {
+      const next = { ...current };
+      delete next[scene.sceneId];
+      return next;
+    });
+    setDraftRedoStack((current) => {
       const next = { ...current };
       delete next[scene.sceneId];
       return next;
@@ -360,7 +417,7 @@ export function RewriteMode({
         <VisualScreenplayEditor
           currentElement={rewriteElement}
           onActiveLineChange={(lineText) => setActiveRewriteLine({ sceneId: scene.sceneId, text: lineText })}
-          onChange={(nextText) => setDrafts((current) => ({ ...current, [scene.sceneId]: nextText }))}
+          onChange={(nextText) => updateDraftText(scene.sceneId, nextText)}
           onElementChange={setRewriteElement}
           ref={(editor) => {
             editorRefs.current[scene.sceneId] = editor;
@@ -454,10 +511,12 @@ export function RewriteMode({
               />
               Notes in reviewed scene
             </label>
-            <label className="compact-check">
-              <input name="rewrite-context" type="checkbox" checked={showContext} onChange={(event) => setShowContext(event.target.checked)} />
-              Previous/next {sectionLabel.toLowerCase()}
-            </label>
+            {displayMode === "single" && (
+              <label className="compact-check">
+                <input name="rewrite-context" type="checkbox" checked={showContext} onChange={(event) => setShowContext(event.target.checked)} />
+                Previous/next {sectionLabel.toLowerCase()}
+              </label>
+            )}
           </section>
 
           {selected && (
@@ -509,8 +568,8 @@ export function RewriteMode({
           <section className="tool-section">
             <h3>Undo / Redo</h3>
             <div className="icon-button-row">
-              <button aria-label="Undo" title="Undo" onClick={onUndo} disabled={!canUndo}>↺</button>
-              <button aria-label="Redo" title="Redo" onClick={onRedo} disabled={!canRedo}>↻</button>
+              <button aria-label="Undo" title="Undo" onClick={undoRewrite} disabled={!canUndoRewriteDraft && !canUndo}>↺</button>
+              <button aria-label="Redo" title="Redo" onClick={redoRewrite} disabled={!canRedoRewriteDraft && !canRedo}>↻</button>
             </div>
           </section>
 

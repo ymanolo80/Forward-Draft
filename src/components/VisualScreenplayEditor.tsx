@@ -61,10 +61,36 @@ function lineElement(line: HTMLElement): ScriptElement {
   return (line.dataset.element as ScriptElement | undefined) ?? "Action";
 }
 
+function isUppercaseElement(element: ScriptElement) {
+  return element === "Scene Heading" || element === "Character" || element === "Transition";
+}
+
+function rawLineText(line: HTMLElement) {
+  return Array.from(line.childNodes).map(serializeInline).join("");
+}
+
 function serializeLine(line: HTMLElement) {
-  const text = Array.from(line.childNodes).map(serializeInline).join("");
+  const text = rawLineText(line);
   const element = lineElement(line);
-  return element === "Scene Heading" || element === "Character" || element === "Transition" ? text.toUpperCase() : text;
+  return isUppercaseElement(element) ? text.toUpperCase() : text;
+}
+
+function lineSelectionOffset(line: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || !selection.anchorNode || !line.contains(selection.anchorNode)) {
+    return rawLineText(line).length;
+  }
+  const range = document.createRange();
+  range.selectNodeContents(line);
+  range.setEnd(selection.anchorNode, selection.anchorOffset);
+  return range.toString().length;
+}
+
+function replaceLineText(line: HTMLElement, text: string) {
+  line.replaceChildren();
+  if (text) appendInlineText(line, text);
+  else line.append(document.createElement("br"));
+  line.classList.toggle("blank-line", !text);
 }
 
 function editorText(root: HTMLElement) {
@@ -142,7 +168,10 @@ export const VisualScreenplayEditor = forwardRef<VisualScreenplayEditorHandle, V
       lastTextRef.current = nextText;
       onChange(nextText);
       const line = resolveActiveLine();
-      if (line) onActiveLineChange(serializeLine(line));
+      if (line) {
+        onElementChange(lineElement(line));
+        onActiveLineChange(serializeLine(line));
+      }
     };
 
     const applyElement = (element: ScriptElement) => {
@@ -151,9 +180,15 @@ export const VisualScreenplayEditor = forwardRef<VisualScreenplayEditorHandle, V
       const line = resolveActiveLine() ?? root.querySelector<HTMLElement>("[data-editor-line='true']") ?? createLine(currentElement);
       if (!root.contains(line)) root.append(line);
       activeLineRef.current = line;
-      const formatted = formatScreenplayLine(element, serializeLine(line));
-      line.replaceChildren();
-      appendInlineText(line, formatted);
+      const previousElement = lineElement(line);
+      const rawText = rawLineText(line);
+      if (isUppercaseElement(element) && !isUppercaseElement(previousElement) && rawText.trim()) {
+        line.dataset.restoreText = rawText;
+      }
+      const baseText = !isUppercaseElement(element) && line.dataset.restoreText ? line.dataset.restoreText : serializeLine(line);
+      const formatted = formatScreenplayLine(element, baseText);
+      replaceLineText(line, formatted);
+      if (!isUppercaseElement(element)) delete line.dataset.restoreText;
       styleLine(line, element, true);
       onElementChange(element);
       emitChange();
@@ -165,8 +200,9 @@ export const VisualScreenplayEditor = forwardRef<VisualScreenplayEditorHandle, V
       const line = root ? resolveActiveLine() : undefined;
       if (!line) return;
       activeLineRef.current = line;
-      line.replaceChildren();
-      appendInlineText(line, replacement);
+      replaceLineText(line, replacement);
+      onElementChange(lineElement(line));
+      onActiveLineChange(replacement);
       emitChange();
       focusLine(line);
     };
@@ -222,13 +258,34 @@ export const VisualScreenplayEditor = forwardRef<VisualScreenplayEditorHandle, V
           }
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
-            const nextElement = inferNextElement(lineElement(line), serializeLine(line));
-            const nextLine = createLine(nextElement, "", true);
+            const element = lineElement(line);
+            const rawText = rawLineText(line);
+            const cursor = lineSelectionOffset(line);
+            const canSplit = cursor > 0 && cursor < rawText.length && (element === "Action" || element === "Dialogue");
+            const nextElement = canSplit ? element : inferNextElement(element, serializeLine(line));
+            const nextText = canSplit ? rawText.slice(cursor).trimStart() : "";
+            if (canSplit) replaceLineText(line, rawText.slice(0, cursor).trimEnd());
+            const nextLine = createLine(nextElement, nextText, true);
             line.after(nextLine);
             activeLineRef.current = nextLine;
             onElementChange(nextElement);
             emitChange();
             focusLine(nextLine, false);
+            return;
+          }
+          if ((event.key === "Backspace" || event.key === "Delete") && !rawLineText(line).trim()) {
+            event.preventDefault();
+            const target =
+              event.key === "Backspace"
+                ? line.previousElementSibling
+                : line.nextElementSibling;
+            if (target instanceof HTMLElement && target.dataset.editorLine === "true") {
+              line.remove();
+              activeLineRef.current = target;
+              onElementChange(lineElement(target));
+              emitChange();
+              focusLine(target);
+            }
           }
         }}
         onKeyUp={() => {
