@@ -662,7 +662,10 @@ export function ReviewMode({
                         <select
                           name="compare-version"
                           value={compareTarget?.versionId ?? ""}
-                          onChange={(event) => setCompareVersionId(event.target.value)}
+                          onChange={(event) => {
+                            setCompareVersionId(event.target.value);
+                            event.currentTarget.blur();
+                          }}
                         >
                           {versions
                             .filter((version) => version.versionId !== current.versionId)

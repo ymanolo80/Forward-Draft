@@ -370,7 +370,10 @@ export function WriteMode({
                 <select
                   name="section-placement"
                   value={sectionPlacement}
-                  onChange={(event) => setSectionPlacement(event.target.value as DraftInsertPlacement)}
+                  onChange={(event) => {
+                    setSectionPlacement(event.target.value as DraftInsertPlacement);
+                    event.currentTarget.blur();
+                  }}
                 >
                   <option value="append">Next {sectionName}</option>
                   <option value="before">Before existing {sectionName}</option>
@@ -383,7 +386,10 @@ export function WriteMode({
                   <select
                     name="section-placement-target"
                     value={placementSceneId}
-                    onChange={(event) => setPlacementSceneId(event.target.value)}
+                    onChange={(event) => {
+                      setPlacementSceneId(event.target.value);
+                      event.currentTarget.blur();
+                    }}
                   >
                     {placementTargets.map((scene) => (
                       <option key={scene.sceneId} value={scene.sceneId}>
@@ -402,7 +408,14 @@ export function WriteMode({
             <h3>Visible Text Window</h3>
             <label>
               Visible text
-              <select name="visible-text" value={visibility} onChange={(event) => setVisibility(event.target.value as VisibilityRule)}>
+              <select
+                name="visible-text"
+                value={visibility}
+                onChange={(event) => {
+                  setVisibility(event.target.value as VisibilityRule);
+                  event.currentTarget.blur();
+                }}
+              >
                 {writeVisibilityOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -412,7 +425,14 @@ export function WriteMode({
             </label>
             <label>
               Disappearing text
-              <select name="fade-timing" value={fadeTiming} onChange={(event) => setFadeTiming(event.target.value as FadeTiming)}>
+              <select
+                name="fade-timing"
+                value={fadeTiming}
+                onChange={(event) => {
+                  setFadeTiming(event.target.value as FadeTiming);
+                  event.currentTarget.blur();
+                }}
+              >
                 {fadeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}

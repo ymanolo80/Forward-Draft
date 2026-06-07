@@ -144,7 +144,10 @@ export function Dashboard({ data, setData, activeProject }: DashboardProps) {
       </div>
       <select
         value={data.activeProjectId ?? ""}
-        onChange={(event) => setData({ ...data, activeProjectId: event.target.value })}
+        onChange={(event) => {
+          setData({ ...data, activeProjectId: event.target.value });
+          event.currentTarget.blur();
+        }}
       >
         {data.projects.map((project) => (
           <option key={project.projectId} value={project.projectId}>

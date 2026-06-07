@@ -481,23 +481,6 @@ export function App() {
         </div>
 
         <div className="topbar-right">
-          <label className="topbar-zoom">
-            <span>Zoom</span>
-            <select
-              name="topbar-document-zoom"
-              value={documentZoom}
-              onChange={(event) => {
-                setDocumentZoom(Number(event.target.value));
-                event.currentTarget.blur();
-              }}
-            >
-              {zoomOptions.map((option) => (
-                <option key={option} value={option}>
-                  {Math.round(option * 100)}%
-                </option>
-              ))}
-            </select>
-          </label>
           <div className="topbar-menus" aria-label="Project actions">
             <details
               ref={optionsRef}
@@ -507,18 +490,22 @@ export function App() {
             >
               <summary>Options</summary>
               <div className="menu-popover options-popover">
-                <section className="menu-section">
-                  <strong>Project</strong>
+                <section className="menu-section menu-project-section">
+                  <strong>Current Project</strong>
                   {activeProject && (
-                    <div className="menu-status">{activeProject.writingMode === "script" ? "Script project" : "Freewriting project"}</div>
+                    <div className="menu-project-card">
+                      <span>{activeProject.writingMode === "script" ? "Script project" : "Freewriting project"}</span>
+                      <strong>{activeProject.title}</strong>
+                    </div>
                   )}
-                  <label>
-                    Current Project
+                  <label className="menu-select-row">
+                    <span>Switch Project</span>
                     <select
                       name="active-project"
                       value={data.activeProjectId ?? ""}
                       onChange={(event) => {
                         setData({ ...data, activeProjectId: event.target.value });
+                        event.currentTarget.blur();
                         setOptionsOpen(false);
                       }}
                     >
@@ -529,111 +516,156 @@ export function App() {
                       ))}
                     </select>
                   </label>
-                  <button onClick={openCoverPage} disabled={!activeProject}>Cover Page</button>
-                  <button onClick={() => { rename(); setOptionsOpen(false); }} disabled={!activeProject}>Rename Project</button>
-                  <button onClick={() => { duplicate(); setOptionsOpen(false); }} disabled={!activeProject}>Duplicate Project</button>
-                  <button onClick={() => { deleteActive(); setOptionsOpen(false); }} disabled={!activeProject}>Delete Project</button>
                 </section>
 
                 <section className="menu-section">
                   <strong>Appearance</strong>
-                  <label>
-                    Theme
+                  <label className="menu-select-row">
+                    <span>Theme</span>
                     <select
                       name="theme-mode"
                       value={themeMode}
-                      onChange={(event) => setThemeMode(event.target.value as ThemeMode)}
+                      onChange={(event) => {
+                        setThemeMode(event.target.value as ThemeMode);
+                        event.currentTarget.blur();
+                      }}
                     >
                       <option value="system">System</option>
                       <option value="light">Light</option>
                       <option value="dark">Dark</option>
                     </select>
                   </label>
+                  <label className="menu-select-row">
+                    <span>Zoom</span>
+                    <select
+                      name="document-zoom"
+                      value={documentZoom}
+                      onChange={(event) => {
+                        setDocumentZoom(Number(event.target.value));
+                        event.currentTarget.blur();
+                      }}
+                    >
+                      {zoomOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {Math.round(option * 100)}%
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </section>
+
+                <section className="menu-section menu-command-section">
+                  <details className="menu-submenu">
+                    <summary>
+                      <span>File</span>
+                      <span className="menu-chevron" aria-hidden="true">›</span>
+                    </summary>
+                    <div className="submenu-panel">
+                      <button onClick={() => { createNew("script"); setOptionsOpen(false); }}>New Script Project</button>
+                      <button onClick={() => { createNew("freewrite"); setOptionsOpen(false); }}>New Freewriting Project</button>
+                      <label className="menu-file" onClick={(event) => openNativeFile(event, ["frdx"], openProjectSource)}>
+                        Open Project File
+                        <input
+                          name="import-project"
+                          type="file"
+                          accept=".frdx"
+                          onChange={(event) => {
+                            openProjectFile(event.target.files?.[0]);
+                            event.currentTarget.value = "";
+                            setOptionsOpen(false);
+                          }}
+                        />
+                      </label>
+                      <button
+                        onClick={async () => {
+                          if (activeProject) await exportProjectFile(activeProject, data);
+                          setOptionsOpen(false);
+                        }}
+                        disabled={!activeProject}
+                      >
+                        Save Project File
+                      </button>
+                      <button onClick={() => { rename(); setOptionsOpen(false); }} disabled={!activeProject}>Rename Project</button>
+                      <button onClick={() => { duplicate(); setOptionsOpen(false); }} disabled={!activeProject}>Duplicate Project</button>
+                      <button className="danger-command" onClick={() => { deleteActive(); setOptionsOpen(false); }} disabled={!activeProject}>Delete Project</button>
+                    </div>
+                  </details>
+
+                  <details className="menu-submenu">
+                    <summary>
+                      <span>Import</span>
+                      <span className="menu-chevron" aria-hidden="true">›</span>
+                    </summary>
+                    <div className="submenu-panel">
+                      <label className="menu-file" onClick={(event) => openNativeFile(event, ["fountain"], importFountainSource)}>
+                        Fountain Script
+                        <input
+                          name="import-fountain"
+                          type="file"
+                          accept=".fountain,text/plain"
+                          onChange={(event) => {
+                            importFountainFile(event.target.files?.[0]);
+                            event.currentTarget.value = "";
+                            setOptionsOpen(false);
+                          }}
+                        />
+                      </label>
+                      <label className="menu-file" onClick={(event) => openNativeFile(event, ["txt"], importTxtSource)}>
+                        TXT Script
+                        <input
+                          name="import-txt"
+                          type="file"
+                          accept=".txt,text/plain"
+                          onChange={(event) => {
+                            importTxtFile(event.target.files?.[0]);
+                            event.currentTarget.value = "";
+                            setOptionsOpen(false);
+                          }}
+                        />
+                      </label>
+                      <label className="menu-file" onClick={(event) => openNativeFile(event, ["fdx", "xml"], importFdxSource)}>
+                        Final Draft
+                        <input
+                          name="import-fdx"
+                          type="file"
+                          onChange={(event) => {
+                            importFdxFile(event.target.files?.[0]);
+                            event.currentTarget.value = "";
+                            setOptionsOpen(false);
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </details>
+
+                  <details className="menu-submenu">
+                    <summary>
+                      <span>Export</span>
+                      <span className="menu-chevron" aria-hidden="true">›</span>
+                    </summary>
+                    <div className="submenu-panel">
+                      <button onClick={async () => { if (activeProject) await exportFountainFile(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
+                        Fountain
+                      </button>
+                      <button onClick={async () => { if (activeProject) await exportText(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
+                        TXT
+                      </button>
+                      <button onClick={async () => { if (activeProject) await exportFullPdf(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
+                        PDF
+                      </button>
+                      <button onClick={async () => { if (activeProject) await exportFullPdf(activeProject, data, true); setOptionsOpen(false); }} disabled={!activeProject}>
+                        Revision PDF
+                      </button>
+                      <button onClick={async () => { if (activeProject) await exportChangesPdf(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
+                        Changes PDF
+                      </button>
+                    </div>
+                  </details>
                 </section>
 
                 <section className="menu-section">
-                  <strong>File</strong>
-                  <button onClick={() => { createNew("script"); setOptionsOpen(false); }}>New Script Project</button>
-                  <button onClick={() => { createNew("freewrite"); setOptionsOpen(false); }}>New Freewriting Project</button>
-                  <label className="menu-file" onClick={(event) => openNativeFile(event, ["frdx"], openProjectSource)}>
-                    Open Project File
-                    <input
-                      name="import-project"
-                      type="file"
-                      accept=".frdx"
-                      onChange={(event) => {
-                        openProjectFile(event.target.files?.[0]);
-                        event.currentTarget.value = "";
-                        setOptionsOpen(false);
-                      }}
-                    />
-                  </label>
-                  <label className="menu-file" onClick={(event) => openNativeFile(event, ["fountain"], importFountainSource)}>
-                    Import Fountain Script
-                    <input
-                      name="import-fountain"
-                      type="file"
-                      accept=".fountain,text/plain"
-                      onChange={(event) => {
-                        importFountainFile(event.target.files?.[0]);
-                        event.currentTarget.value = "";
-                        setOptionsOpen(false);
-                      }}
-                    />
-                  </label>
-                  <label className="menu-file" onClick={(event) => openNativeFile(event, ["txt"], importTxtSource)}>
-                    Import TXT Script
-                    <input
-                      name="import-txt"
-                      type="file"
-                      accept=".txt,text/plain"
-                      onChange={(event) => {
-                        importTxtFile(event.target.files?.[0]);
-                        event.currentTarget.value = "";
-                        setOptionsOpen(false);
-                      }}
-                    />
-                  </label>
-                  <label className="menu-file" onClick={(event) => openNativeFile(event, ["fdx", "xml"], importFdxSource)}>
-                    Import Final Draft
-                    <input
-                      name="import-fdx"
-                      type="file"
-                      onChange={(event) => {
-                        importFdxFile(event.target.files?.[0]);
-                        event.currentTarget.value = "";
-                        setOptionsOpen(false);
-                      }}
-                    />
-                  </label>
-                  <button
-                    onClick={async () => {
-                      if (activeProject) await exportProjectFile(activeProject, data);
-                      setOptionsOpen(false);
-                    }}
-                    disabled={!activeProject}
-                  >
-                    Save Project File
-                  </button>
-                </section>
-
-                <section className="menu-section">
-                  <strong>Export</strong>
-                  <button onClick={async () => { if (activeProject) await exportFountainFile(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
-                    Export Fountain
-                  </button>
-                  <button onClick={async () => { if (activeProject) await exportText(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
-                    Export TXT
-                  </button>
-                  <button onClick={async () => { if (activeProject) await exportFullPdf(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
-                    Export PDF
-                  </button>
-                  <button onClick={async () => { if (activeProject) await exportFullPdf(activeProject, data, true); setOptionsOpen(false); }} disabled={!activeProject}>
-                    Export Revision PDF
-                  </button>
-                  <button onClick={async () => { if (activeProject) await exportChangesPdf(activeProject, data); setOptionsOpen(false); }} disabled={!activeProject}>
-                    Export Changes PDF
-                  </button>
+                  <strong>Cover Page</strong>
+                  <button onClick={openCoverPage} disabled={!activeProject}>Edit Cover Page</button>
                 </section>
 
               </div>
