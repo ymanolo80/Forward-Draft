@@ -9,6 +9,7 @@
     "build": "tsc && vite build",
     "native:sync": "npm run build && cap sync && node scripts/register-forwarddraft-plugin.mjs",
     "native:build:ios": "npm run native:sync && xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO build",
+    "native:build:mac": "npm run native:sync && xcodebuild -project ios/App/App.xcodeproj -scheme App -destination 'platform=macOS,variant=Designed for iPad' CODE_SIGNING_ALLOWED=NO build",
     "native:ios": "npm run native:sync && cap open ios",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run -c vitest.config.ts",

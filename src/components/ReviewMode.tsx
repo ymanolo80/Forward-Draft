@@ -31,6 +31,7 @@ interface SelectionInfo {
 }
 
 type ReviewView = "scene" | "full";
+type SceneListFilter = "all" | "edited";
 interface NoteAnchor {
   x: number;
   y: number;
@@ -134,6 +135,7 @@ export function ReviewMode({
   const [showScenes, setShowScenes] = useState(false);
   const [showNotes, setShowNotes] = useState(true);
   const [reordering, setReordering] = useState(false);
+  const [sceneListFilter, setSceneListFilter] = useState<SceneListFilter>("all");
   const [dropIndex, setDropIndex] = useState<number | undefined>();
   const [pointerDragSceneId, setPointerDragSceneId] = useState<string | undefined>();
   const [pointerDragStartY, setPointerDragStartY] = useState(0);
@@ -168,6 +170,8 @@ export function ReviewMode({
   const activeNote = data.notes.find((note) => note.noteId === activeNoteId);
 
   const sceneVersion = (item: Scene) => data.versions.find((version) => version.versionId === item.currentVersionId);
+  const sceneHasEdits = (item: Scene) => data.versions.filter((version) => version.sceneId === item.sceneId).length > 1;
+  const visibleSceneList = sceneListFilter === "edited" ? sortedScenes.filter(sceneHasEdits) : sortedScenes;
   const sceneNotes = (item: Scene, version?: SceneVersion) =>
     data.notes.filter((note) => note.sceneId === item.sceneId && note.versionId === version?.versionId);
   const sceneHighlights = (item: Scene, version?: SceneVersion) =>
@@ -340,6 +344,11 @@ export function ReviewMode({
   };
 
   const openAnchoredNote = (noteId: string) => {
+    if (activeNoteId === noteId) {
+      setActiveNoteId(undefined);
+      setNoteAnchor(undefined);
+      return;
+    }
     const target =
       document.querySelector<HTMLElement>(`[data-note-id="${noteId}"] .note-pin`) ??
       document.querySelector<HTMLElement>(`[data-note-id="${noteId}"]`);
@@ -554,14 +563,26 @@ export function ReviewMode({
                 <strong>{sceneLabelPlural} List</strong>
                 <div className="scene-pane-actions">
                   <button
+                    className={sceneListFilter === "edited" ? "active" : ""}
+                    onClick={() => {
+                      setReordering(false);
+                      setSceneListFilter((value) => (value === "all" ? "edited" : "all"));
+                    }}
+                  >
+                    {sceneListFilter === "all" ? "Edited" : "All"}
+                  </button>
+                  <button
                     className={reordering ? "active" : ""}
+                    disabled={sceneListFilter !== "all"}
                     onClick={() => setReordering((value) => !value)}
                   >
                     {reordering ? "Done" : "Reorder"}
                   </button>
                 </div>
               </header>
-              <div className={`scene-drawer-list ${reordering ? "is-reordering" : ""}`}>{sortedScenes.map(renderSceneButton)}</div>
+              <div className={`scene-drawer-list ${reordering ? "is-reordering" : ""}`}>
+                {visibleSceneList.length > 0 ? visibleSceneList.map(renderSceneButton) : <p className="subtle-empty">No edited {sceneLabelPlural.toLowerCase()} yet.</p>}
+              </div>
             </aside>
           ) : null}
 
@@ -698,7 +719,10 @@ export function ReviewMode({
               )}
             </section>
 
-            <ToolFontControls fontSettings={fontSettings} setFontSettings={setFontSettings} />
+            <ToolFontControls
+              fontSettings={fontSettings}
+              setFontSettings={setFontSettings}
+            />
 
             <section className="tool-section">
               <h3>Undo / Redo</h3>
@@ -766,14 +790,26 @@ export function ReviewMode({
                   <div className="scene-pane-actions">
                     <button
                       className={reordering ? "active" : ""}
+                      disabled={sceneListFilter !== "all"}
                       onClick={() => setReordering((value) => !value)}
                     >
                       {reordering ? "Done" : "Reorder"}
                     </button>
+                    <button
+                      className={sceneListFilter === "edited" ? "active" : ""}
+                      onClick={() => {
+                        setReordering(false);
+                        setSceneListFilter((value) => (value === "all" ? "edited" : "all"));
+                      }}
+                    >
+                      {sceneListFilter === "all" ? "Edited" : "All"}
+                    </button>
                     <button onClick={() => setShowScenes(false)}>Close</button>
                   </div>
                 </header>
-                <div className={`scene-drawer-list ${reordering ? "is-reordering" : ""}`}>{sortedScenes.map(renderSceneButton)}</div>
+                <div className={`scene-drawer-list ${reordering ? "is-reordering" : ""}`}>
+                  {visibleSceneList.length > 0 ? visibleSceneList.map(renderSceneButton) : <p className="subtle-empty">No edited {sceneLabelPlural.toLowerCase()} yet.</p>}
+                </div>
               </aside>
             </div>
           )}

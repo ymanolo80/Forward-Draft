@@ -81,6 +81,77 @@ function fountainCover(project: Project) {
   return `${lines.join("\n")}\n\n`;
 }
 
+function hasUnicodeText(text: string) {
+  return /[^\u0000-\u00ff]/.test(text);
+}
+
+function wrapUnicodeText(pdf: jsPDF, text: string, width: number) {
+  if (!hasUnicodeText(text)) return pdf.splitTextToSize(text, width) as string[];
+  const averageCharWidth = pdf.getFontSize() * 0.3528 * 0.56;
+  const maxChars = Math.max(8, Math.floor(width / averageCharWidth));
+  const words = text.split(/(\s+)/);
+  const lines: string[] = [];
+  let line = "";
+  words.forEach((word) => {
+    const next = `${line}${word}`;
+    if (line.trim() && next.length > maxChars) {
+      lines.push(line.trimEnd());
+      line = word.trimStart();
+    } else {
+      line = next;
+    }
+  });
+  if (line.trim()) lines.push(line.trimEnd());
+  return lines.length ? lines : [" "];
+}
+
+function drawUnicodeLine(pdf: jsPDF, text: string, x: number, y: number, options: { align?: "left" | "center" | "right" } = {}) {
+  if (!hasUnicodeText(text) || typeof document === "undefined") {
+    pdf.text(text, x, y, options);
+    return;
+  }
+
+  const scale = 3;
+  const fontSize = pdf.getFontSize();
+  const fontPx = Math.ceil((fontSize * 96 * scale) / 72);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) {
+    pdf.text(text, x, y, options);
+    return;
+  }
+  context.font = `${fontPx}px "Courier New", Menlo, monospace`;
+  const metrics = context.measureText(text || " ");
+  canvas.width = Math.max(2, Math.ceil(metrics.width + 8 * scale));
+  canvas.height = Math.ceil(fontPx * 1.45);
+  context.font = `${fontPx}px "Courier New", Menlo, monospace`;
+  context.fillStyle = "#141414";
+  context.textBaseline = "alphabetic";
+  context.fillText(text || " ", 4 * scale, fontPx);
+
+  const widthMm = (canvas.width / scale) * (25.4 / 96);
+  const heightMm = (canvas.height / scale) * (25.4 / 96);
+  const left = options.align === "center" ? x - widthMm / 2 : options.align === "right" ? x - widthMm : x;
+  pdf.addImage(canvas.toDataURL("image/png"), "PNG", left, y - heightMm * 0.74, widthMm, heightMm);
+}
+
+function drawPdfText(
+  pdf: jsPDF,
+  text: string | string[],
+  x: number,
+  y: number,
+  options: { align?: "left" | "center" | "right"; maxWidth?: number } = {},
+) {
+  const lines = Array.isArray(text) ? text : String(text).split("\n");
+  const lineHeight = pdf.getFontSize() * 0.3528 * 1.18;
+  lines.forEach((line, index) => drawUnicodeLine(pdf, line || " ", x, y + index * lineHeight, options));
+}
+
+function pdfTextWidth(pdf: jsPDF, text: string) {
+  if (!hasUnicodeText(text)) return pdf.getTextWidth(text);
+  return text.length * pdf.getFontSize() * 0.3528 * 0.56;
+}
+
 export function exportText(project: Project, data: AppData) {
   return savePortableFile(
     {
@@ -118,13 +189,13 @@ function drawCoverPage(pdf: jsPDF, project: Project) {
   pdf.setFont("courier", "normal");
   pdf.setTextColor(20, 20, 20);
   pdf.setFontSize(20);
-  pdf.text(cover.title.toUpperCase(), 105, 104, { align: "center", maxWidth: 156 });
+  drawPdfText(pdf, cover.title.toUpperCase(), 105, 104, { align: "center", maxWidth: 156 });
   pdf.setFontSize(11);
-  pdf.text("Written by", 105, 124, { align: "center" });
-  if (cover.writtenBy.trim()) pdf.text(cover.writtenBy, 105, 136, { align: "center", maxWidth: 140 });
+  drawPdfText(pdf, "Written by", 105, 124, { align: "center" });
+  if (cover.writtenBy.trim()) drawPdfText(pdf, cover.writtenBy, 105, 136, { align: "center", maxWidth: 140 });
   pdf.setFontSize(9);
-  if (cover.contact.trim()) pdf.text(cover.contact.split("\n"), 24, 260, { maxWidth: 72 });
-  if (cover.date.trim()) pdf.text(cover.date, 186, 272, { align: "right" });
+  if (cover.contact.trim()) drawPdfText(pdf, cover.contact.split("\n"), 24, 260, { maxWidth: 72 });
+  if (cover.date.trim()) drawPdfText(pdf, cover.date, 186, 272, { align: "right" });
 }
 
 function cleanBlockLayout(block: ScreenplayTextBlock) {
@@ -162,10 +233,10 @@ function addCleanScript(pdf: jsPDF, project: Project, data: AppData) {
         pdf.text(String(scene.order), 24, y, { align: "right" });
       }
 
-      const lines = pdf.splitTextToSize(block.text.trim() || " ", layout.width) as string[];
+      const lines = wrapUnicodeText(pdf, block.text.trim() || " ", layout.width);
       lines.forEach((line) => {
         ensureRoom();
-        pdf.text(line || " ", layout.x, y, { align: layout.align, maxWidth: layout.width });
+        drawPdfText(pdf, line || " ", layout.x, y, { align: layout.align, maxWidth: layout.width });
         y += lineHeight;
       });
     });
@@ -197,12 +268,12 @@ interface AnnotatedRow {
 
 function annotatedBlockLayout(block: ScreenplayTextBlock) {
   const gap = block.hasGapBefore ? 8 : block.element === "Character" || block.element === "Transition" ? 5 : 0;
-  if (block.element === "Scene Heading") return { x: 34, width: 106, align: "left" as const, gap };
+  if (block.element === "Scene Heading") return { x: 34, width: 114, align: "left" as const, gap };
   if (block.element === "Character") return { x: 88, width: 44, align: "center" as const, gap };
-  if (block.element === "Dialogue") return { x: 56, width: 80, align: "left" as const, gap };
+  if (block.element === "Dialogue") return { x: 56, width: 86, align: "left" as const, gap };
   if (block.element === "Parenthetical") return { x: 68, width: 58, align: "left" as const, gap };
-  if (block.element === "Transition") return { x: 134, width: 38, align: "right" as const, gap };
-  return { x: 34, width: 106, align: "left" as const, gap: block.hasGapBefore ? 8 : 5 };
+  if (block.element === "Transition") return { x: 140, width: 38, align: "right" as const, gap };
+  return { x: 34, width: 114, align: "left" as const, gap: block.hasGapBefore ? 8 : 5 };
 }
 
 function layoutAnnotatedRows(pdf: jsPDF, text: string): AnnotatedRow[] {
@@ -211,7 +282,7 @@ function layoutAnnotatedRows(pdf: jsPDF, text: string): AnnotatedRow[] {
     const layout = annotatedBlockLayout(block);
     const displayText = block.text.trim() || " ";
     const leadingOffset = block.text.indexOf(displayText.trim()) >= 0 ? block.text.indexOf(displayText.trim()) : 0;
-    const wrapped = pdf.splitTextToSize(displayText, layout.width) as string[];
+    const wrapped = wrapUnicodeText(pdf, displayText, layout.width);
     let cursor = 0;
     wrapped.forEach((part, index) => {
       const partIndex = displayText.indexOf(part, cursor);
@@ -296,7 +367,7 @@ function mappedNoteAnchor(note: ReviewNote, oldText: string | undefined, current
 }
 
 function rowTextLeft(pdf: jsPDF, row: AnnotatedRow) {
-  const width = pdf.getTextWidth(row.text);
+  const width = pdfTextWidth(pdf, row.text);
   if (row.align === "center") return row.x - width / 2;
   if (row.align === "right") return row.x - width;
   return row.x;
@@ -449,17 +520,17 @@ function rowAnchorX(pdf: jsPDF, row: AnnotatedRow, anchor: Pick<ChangeAnchor, "s
     const end = Math.min(row.text.length, anchor.span.end - row.rangeStart);
     const prefix = row.text.slice(0, start);
     const highlighted = row.text.slice(start, Math.max(start, end));
-    return textLeft + pdf.getTextWidth(prefix) + pdf.getTextWidth(highlighted) / 2;
+    return textLeft + pdfTextWidth(pdf, prefix) + pdfTextWidth(pdf, highlighted) / 2;
   }
   if (anchor.deletionAt !== undefined) {
     const position = Math.max(0, Math.min(row.text.length, anchor.deletionAt - row.rangeStart));
-    return textLeft + pdf.getTextWidth(row.text.slice(0, position));
+    return textLeft + pdfTextWidth(pdf, row.text.slice(0, position));
   }
   return textLeft;
 }
 
 function drawAnnotationCard(pdf: jsPDF, text: string, x: number, y: number, width: number) {
-  const lines = pdf.splitTextToSize(text, width - 6) as string[];
+  const lines = wrapUnicodeText(pdf, text, width - 6);
   const height = Math.max(16, lines.length * 4 + 8);
   pdf.setDrawColor(151, 171, 183);
   pdf.setFillColor(255, 252, 242);
@@ -467,7 +538,7 @@ function drawAnnotationCard(pdf: jsPDF, text: string, x: number, y: number, widt
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(7.5);
   pdf.setTextColor(44, 54, 64);
-  pdf.text(lines, x + 3, y + 6);
+  drawPdfText(pdf, lines, x + 3, y + 6);
   return height;
 }
 
@@ -483,11 +554,11 @@ function drawAnnotatedScene(
   const scriptX = 34;
   const sceneNumberX = 27;
   const scriptY = 24;
-  const scriptWidth = 106;
-  const noteX = 154;
+  const scriptWidth = 114;
+  const noteX = 160;
   const noteY = 18;
-  const noteWidth = 38;
-  const noteRailX = 148;
+  const noteWidth = 32;
+  const noteRailX = 155;
   const lineHeight = 5;
   const pageBottom = 272;
   pdf.setFont("courier", "normal");
@@ -534,9 +605,9 @@ function drawAnnotatedScene(
         const textLeft = rowTextLeft(pdf, row);
         pdf.setFillColor(255, 244, 151);
         pdf.rect(
-          textLeft + pdf.getTextWidth(prefix) - 0.6,
+          textLeft + pdfTextWidth(pdf, prefix) - 0.6,
           y - 3.5,
-          Math.max(1.4, pdf.getTextWidth(highlighted) + 1.2),
+          Math.max(1.4, pdfTextWidth(pdf, highlighted) + 1.2),
           4.6,
           "F",
         );
@@ -546,7 +617,7 @@ function drawAnnotatedScene(
         pdf.text(String(sceneOrder), sceneNumberX, y, { align: "right" });
         sceneNumberDrawn = true;
       }
-      pdf.text(row.text || " ", row.x, y, { align: row.align, maxWidth: row.width });
+      drawPdfText(pdf, row.text || " ", row.x, y, { align: row.align, maxWidth: row.width });
       y += lineHeight;
     });
 
@@ -576,7 +647,7 @@ function drawAnnotatedScene(
     if (cards.length) {
       pdf.setFillColor(244, 247, 248);
       pdf.setDrawColor(213, 222, 228);
-      pdf.roundedRect(noteRailX, 18, 48, 258, 2, 2, "FD");
+      pdf.roundedRect(noteRailX, 18, 41, 258, 2, 2, "FD");
     }
 
     let cardY = noteY;

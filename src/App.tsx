@@ -13,11 +13,13 @@ import {
   type TextFileSource,
 } from "./lib/projectIO";
 import { createProject } from "./lib/seed";
+import { parseScreenplayText } from "./lib/screenplay";
 import { emptyData, loadData, saveData } from "./lib/storage";
 import type { AppData, AppMode, CoverPage, FadeTiming, FontFamilyChoice, FontSettings, Project, VisibilityRule, WritingMode } from "./types";
 
 type ThemeMode = "system" | "light" | "dark";
 const SCENE_LIST_TOGGLE_EVENT = "forwarddraft:toggle-scene-list";
+const zoomOptions = [1, 1.25, 1.5, 2];
 
 const fontFamilyMap: Record<FontFamilyChoice, string> = {
   screenplay: '"Courier Prime", "Courier New", Courier, monospace',
@@ -38,6 +40,37 @@ function projectText(project: Project | undefined, data: AppData) {
 
 function wordCount(text: string) {
   return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function wrappedLineCount(text: string, charactersPerLine: number) {
+  if (!text.trim()) return 1;
+  return text
+    .split("\n")
+    .reduce((count, line) => count + Math.max(1, Math.ceil(line.trim().length / charactersPerLine)), 0);
+}
+
+function screenplayPageCount(text: string) {
+  if (!text.trim()) return 1;
+  const blocks = parseScreenplayText(text);
+  const lines = blocks.reduce((count, block) => {
+    const charactersPerLine =
+      block.element === "Dialogue"
+        ? 34
+        : block.element === "Parenthetical"
+          ? 28
+          : block.element === "Character" || block.element === "Transition" || block.element === "Scene Heading"
+            ? 60
+            : 58;
+    const gap = block.hasGapBefore ? 1 : 0;
+    return count + gap + wrappedLineCount(block.text, charactersPerLine);
+  }, 0);
+  return Math.max(1, Math.ceil(lines / 55));
+}
+
+function projectPageCount(project: Project | undefined, text: string) {
+  if (!project) return 1;
+  if (project.writingMode === "script") return screenplayPageCount(text);
+  return Math.max(1, Math.ceil(wordCount(text) / 250));
 }
 
 function defaultCoverPage(project: Project): CoverPage {
@@ -64,6 +97,10 @@ export function App() {
   const [coverDraft, setCoverDraft] = useState<CoverPage | undefined>();
   const [visibility, setVisibility] = useState<VisibilityRule>("last3");
   const [fadeTiming, setFadeTiming] = useState<FadeTiming>("3s");
+  const [documentZoom, setDocumentZoomState] = useState(() => {
+    const stored = Number(localStorage.getItem("forward-draft-document-zoom"));
+    return zoomOptions.includes(stored) ? stored : 1.25;
+  });
   const [fontSettings, setFontSettings] = useState<FontSettings>({
     family: "screenplay",
     size: 16,
@@ -92,6 +129,11 @@ export function App() {
     document.documentElement.dataset.theme = themeMode;
     localStorage.setItem("forward-draft-theme", themeMode);
   }, [themeMode]);
+
+  const setDocumentZoom = (next: number) => {
+    setDocumentZoomState(next);
+    localStorage.setItem("forward-draft-document-zoom", String(next));
+  };
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -164,7 +206,7 @@ export function App() {
 
   const text = projectText(activeProject, data);
   const words = wordCount(text);
-  const pages = Math.max(1, Math.ceil(words / 250));
+  const pages = projectPageCount(activeProject, text);
   const appStyle = {
     "--draft-font-family": fontFamilyMap[fontSettings.family],
     "--draft-font-size": `${fontSettings.size}px`,
@@ -172,6 +214,9 @@ export function App() {
     "--draft-font-weight": "400",
     "--draft-font-style": "normal",
     "--draft-text-decoration": "none",
+    "--page-zoom": String(documentZoom),
+    "--page-view-width": `${820 * documentZoom}px`,
+    "--draft-view-font-size": `${fontSettings.size * documentZoom}px`,
   } as CSSProperties;
   const hasSceneListToggle = Boolean(activeProject && (mode === "review" || mode === "rewrite"));
   const sceneListLabel = activeProject?.writingMode === "freewrite" ? "Chapters" : "Scenes";
@@ -436,6 +481,23 @@ export function App() {
         </div>
 
         <div className="topbar-right">
+          <label className="topbar-zoom">
+            <span>Zoom</span>
+            <select
+              name="topbar-document-zoom"
+              value={documentZoom}
+              onChange={(event) => {
+                setDocumentZoom(Number(event.target.value));
+                event.currentTarget.blur();
+              }}
+            >
+              {zoomOptions.map((option) => (
+                <option key={option} value={option}>
+                  {Math.round(option * 100)}%
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="topbar-menus" aria-label="Project actions">
             <details
               ref={optionsRef}

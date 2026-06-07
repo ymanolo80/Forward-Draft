@@ -46,6 +46,14 @@ Temporary bundle identifier: `com.ymanolo80.forwarddraft`
 - [ ] Confirm exported files open outside Forward Draft.
 - [ ] Record every place where browser-style file behavior feels unclear.
 
+## First Mac Run
+
+- [x] Confirm Xcode exposes `My Mac` as a Designed for iPad/iPhone destination.
+- [x] Confirm the wrapper builds for the Mac destination.
+- [ ] Launch Forward Draft on Mac from Xcode.
+- [ ] Run the Mac wrapper QA checklist.
+- [ ] Decide whether the iPad-on-Mac wrapper is good enough for v1 Mac testing.
+
 ## Decision Gate
 
 Continue with Capacitor if the app launches reliably and core workflows feel natural.

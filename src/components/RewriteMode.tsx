@@ -468,7 +468,7 @@ export function RewriteMode({
             })}
           </aside>
         ) : null}
-        <main className="rewrite-main">
+        <main className={`rewrite-main ${displayMode === "single" ? "single-rewrite-main" : "all-rewrite-main"}`}>
           {queue.length === 0 && <div className="empty-state">No rewrite {sectionLabel.toLowerCase()}s in the scenes list.</div>}
           {displayMode === "single" && selected && (
             renderRewriteScene(selected)

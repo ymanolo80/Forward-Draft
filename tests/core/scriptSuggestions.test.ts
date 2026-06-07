@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cycleElement, importFountainProject } from "../../src/lib/fountain";
-import { characterNameSuggestions, projectCharacterNames, screenplayElementSuggestions } from "../../src/lib/scriptSuggestions";
+import { characterNameSuggestions, projectCharacterNames, sceneHeadingSuggestions, screenplayElementSuggestions } from "../../src/lib/scriptSuggestions";
 import type { DraftBlock } from "../../src/types";
 
 describe("script suggestions", () => {
@@ -31,6 +31,12 @@ describe("script suggestions", () => {
     const imported = importFountainProject("greek.fountain", "INT. KITCHEN - NIGHT\n\nΑΝΤΡΟΝΙΚΗ\nΚαλά δεν μπορούσες;");
 
     expect(characterNameSuggestions("αν", imported.project, imported.versions)).toEqual(["ΑΝΤΡΟΝΙΚΗ"]);
+  });
+
+  it("suggests existing Unicode scene headings", () => {
+    const imported = importFountainProject("greek.fountain", "INT. ΚΟΥΖΙΝΑ - NIGHT\n\nΑΝΤΡΟΝΙΚΗ\nΚαλά δεν μπορούσες;");
+
+    expect(sceneHeadingSuggestions("int. κου", imported.project)).toContain("INT. ΚΟΥΖΙΝΑ - NIGHT");
   });
 
   it("cycles only through the visible writing elements", () => {

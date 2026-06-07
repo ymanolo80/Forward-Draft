@@ -68,24 +68,46 @@ function sceneLocations(project: Project) {
   return [...values].slice(0, 8);
 }
 
+function existingSceneHeadings(project: Project) {
+  const values = new Set<string>();
+  project.scenes.forEach((scene) => {
+    const heading = stripInlineFountain(scene.heading.trim()).toUpperCase();
+    if (heading) values.add(heading);
+  });
+  project.drafts
+    .filter((block) => block.element === "Scene Heading")
+    .forEach((block) => {
+      const heading = stripInlineFountain(block.text.trim()).toUpperCase();
+      if (heading) values.add(heading);
+    });
+  return [...values].sort((a, b) => a.localeCompare(b));
+}
+
+function uniqueSuggestions(values: string[]) {
+  return [...new Set(values)].slice(0, 8);
+}
+
 export function sceneHeadingSuggestions(text: string, project: Project) {
   const value = text.toUpperCase();
+  const existingMatches = existingSceneHeadings(project).filter((heading) => !value || heading.startsWith(value));
   const prefix = scenePrefixes.find((item) => value.startsWith(item));
-  if (!prefix) return scenePrefixes.filter((item) => item.startsWith(value)).slice(0, 5);
+  if (!prefix) return uniqueSuggestions([...existingMatches, ...scenePrefixes.filter((item) => item.startsWith(value))]).slice(0, 5);
 
   const hasSeparator = value.includes(" - ");
   if (!hasSeparator) {
     const locationText = value.slice(prefix.length).trim();
     const locations = sceneLocations(project).filter((location) => location.startsWith(locationText));
-    if (locationText && locations.length === 0) return [`${value} - `];
-    return locations.map((location) => `${prefix} ${location} - `).slice(0, 5);
+    if (locationText && locations.length === 0) return existingMatches.length ? existingMatches.slice(0, 5) : [`${value} - `];
+    return uniqueSuggestions([...existingMatches, ...locations.map((location) => `${prefix} ${location} - `)]).slice(0, 5);
   }
 
   const [beforeTime, timeText = ""] = value.split(" - ");
-  return sceneTimes
+  return uniqueSuggestions([
+    ...existingMatches,
+    ...sceneTimes
     .filter((time) => time.startsWith(timeText.trim()))
     .map((time) => `${beforeTime} - ${time}`)
-    .slice(0, 5);
+  ]).slice(0, 5);
 }
 
 function optionSuggestions(text: string, options: string[]) {

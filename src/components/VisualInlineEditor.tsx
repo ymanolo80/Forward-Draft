@@ -1,4 +1,5 @@
-import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
+import { editableSelection, wrapEditableSelection } from "../lib/inlineEditing";
 import { parseInlineFountain } from "../lib/screenplay";
 
 export interface VisualInlineEditorHandle {
@@ -64,6 +65,7 @@ export const VisualInlineEditor = forwardRef<VisualInlineEditorHandle, VisualInl
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
   const lastTextRef = useRef("");
+  const selectionRef = useRef<Range | undefined>(undefined);
 
   const emitChange = () => {
     const root = rootRef.current;
@@ -73,14 +75,23 @@ export const VisualInlineEditor = forwardRef<VisualInlineEditorHandle, VisualInl
     onChange(nextText);
   };
 
+  const rememberSelection = () => {
+    const root = rootRef.current;
+    if (!root) return;
+    selectionRef.current = editableSelection(root) ?? selectionRef.current;
+  };
+
+  useEffect(() => {
+    document.addEventListener("selectionchange", rememberSelection);
+    return () => document.removeEventListener("selectionchange", rememberSelection);
+  }, []);
+
   useImperativeHandle(ref, () => ({
     focus: () => rootRef.current?.focus(),
     formatSelection: (marker: string) => {
       const root = rootRef.current;
-      const selection = window.getSelection();
-      if (!root || !selection || selection.isCollapsed || !selection.anchorNode || !root.contains(selection.anchorNode)) return;
-      const command = marker === "**" ? "bold" : marker === "*" ? "italic" : "underline";
-      document.execCommand(command, false);
+      if (!root || !wrapEditableSelection(root, marker, selectionRef.current)) return;
+      selectionRef.current = editableSelection(root);
       emitChange();
     },
   }));
@@ -91,6 +102,7 @@ export const VisualInlineEditor = forwardRef<VisualInlineEditorHandle, VisualInl
     root.replaceChildren();
     appendInlineText(root, text);
     lastTextRef.current = text;
+    selectionRef.current = undefined;
   }, [text]);
 
   return (
@@ -102,6 +114,10 @@ export const VisualInlineEditor = forwardRef<VisualInlineEditorHandle, VisualInl
       onBlur={emitChange}
       onInput={emitChange}
       onKeyDown={onKeyDown}
+      onKeyUp={rememberSelection}
+      onMouseUp={rememberSelection}
+      onSelect={rememberSelection}
+      onTouchEnd={rememberSelection}
       ref={rootRef}
       role="textbox"
       spellCheck

@@ -1,6 +1,7 @@
-import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import type { ScriptElement } from "../types";
 import { cycleElement, elementClass, inferNextElement } from "../lib/fountain";
+import { editableSelection, wrapEditableSelection } from "../lib/inlineEditing";
 import { formatScreenplayLine, parseInlineFountain, parseScreenplayText } from "../lib/screenplay";
 
 export interface VisualScreenplayEditorHandle {
@@ -152,6 +153,7 @@ export const VisualScreenplayEditor = forwardRef<VisualScreenplayEditorHandle, V
     const rootRef = useRef<HTMLDivElement>(null);
     const activeLineRef = useRef<HTMLElement | null>(null);
     const lastTextRef = useRef("");
+    const selectionRef = useRef<Range | undefined>(undefined);
 
     const resolveActiveLine = () => {
       const root = rootRef.current;
@@ -173,6 +175,17 @@ export const VisualScreenplayEditor = forwardRef<VisualScreenplayEditorHandle, V
         onActiveLineChange(serializeLine(line));
       }
     };
+
+    const rememberSelection = () => {
+      const root = rootRef.current;
+      if (!root) return;
+      selectionRef.current = editableSelection(root) ?? selectionRef.current;
+    };
+
+    useEffect(() => {
+      document.addEventListener("selectionchange", rememberSelection);
+      return () => document.removeEventListener("selectionchange", rememberSelection);
+    }, []);
 
     const applyElement = (element: ScriptElement) => {
       const root = rootRef.current;
@@ -209,10 +222,8 @@ export const VisualScreenplayEditor = forwardRef<VisualScreenplayEditorHandle, V
 
     const formatSelection = (marker: string) => {
       const root = rootRef.current;
-      const selection = window.getSelection();
-      if (!root || !selection || selection.isCollapsed || !selection.anchorNode || !root.contains(selection.anchorNode)) return;
-      const command = marker === "**" ? "bold" : marker === "*" ? "italic" : "underline";
-      document.execCommand(command, false);
+      if (!root || !wrapEditableSelection(root, marker, selectionRef.current)) return;
+      selectionRef.current = editableSelection(root);
       emitChange();
     };
 
@@ -222,6 +233,7 @@ export const VisualScreenplayEditor = forwardRef<VisualScreenplayEditorHandle, V
       if (document.activeElement === root) return;
       populateEditor(root, text);
       lastTextRef.current = text;
+      selectionRef.current = undefined;
     }, [text]);
 
     useImperativeHandle(forwardedRef, () => ({
@@ -294,7 +306,11 @@ export const VisualScreenplayEditor = forwardRef<VisualScreenplayEditorHandle, V
           activeLineRef.current = line;
           if (!line.dataset.explicitElement) styleLine(line, lineElement(line));
           onActiveLineChange(serializeLine(line));
+          rememberSelection();
         }}
+        onMouseUp={rememberSelection}
+        onSelect={rememberSelection}
+        onTouchEnd={rememberSelection}
         ref={rootRef}
         role="textbox"
         spellCheck

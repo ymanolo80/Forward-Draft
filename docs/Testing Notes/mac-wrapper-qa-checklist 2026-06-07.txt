@@ -1,0 +1,94 @@
+# Mac Wrapper QA Checklist
+
+Use this checklist for the first Mac pass from the Apple wrapper branch. Record notes in `docs/Testing Notes/`.
+
+## Build And Launch
+
+- [y] Run the Mac build script successfully.
+- [y] Open `ios/App/App.xcodeproj` in Xcode.
+- [y] Select `My Mac` as the destination, shown as Designed for iPad/iPhone.
+- [y] Build and launch Forward Draft on Mac.
+- [y] Confirm the app launches without needing a web server.
+- [y] Confirm the app remains on the same local project after relaunch.
+
+## Window And Layout
+
+- [n] Default window size feels usable on Mac. - text looks too small and when we resize th panes remain small and restricted - the writing pane should aim for a full a4 writing page (this is also an issue with iPad in terms of the industry standard of measuring 1 page per minute, but ut needs to be a proper a4 page - our page count in the bottom reflects the page size we have or a full a4 page size?) - this should apply to iPad and Mac - and speaking of size and window panes - I discovered that in iPad the writing pabne extends below the screen size where'sa the scene list and tools panes nicely round off within the screen size- that also creates an effect of all three panes scrolling slightly up and down as you scroll other the bottom of the writing pane - maybe the writing pane needs to also extend only to the edge of the screen and then the text can scroll within it? - sorry for the iPad note on the Mac qa list)
+- [n] Window can be resized wider without broken spacing. - no, see screenshots -also the scene list pane remains small and some of the test is clipped when it can be rested to fit the ample space, same with all the panes
+- [n] Window can be resized narrower without important controls clipping. - see screenshots
+- [y] Top navigation has enough breathing room in a Mac window.
+- [y] Scene list opens and closes cleanly.
+- [y] Right tools panel stays readable and scrollable.- yes, albeit small fonts as discussed earlier
+- [y] Options menu stays inside the window and scrolls if needed.
+- [y] Cover page editor stays usable in the Mac window.
+
+## Pointer And Keyboard
+
+- [y] Pointer hover states feel clear.
+- [y] Buttons and segmented controls feel precise with mouse/trackpad.
+- [y] Text cursor placement works in Write.
+- [y] Text cursor placement works in Rewrite.
+- [y] Tab cycles screenplay elements.
+- [y] Undo and redo work after typing.
+- [y] Undo and redo work after non-typing actions.
+- [?] Keyboard focus does not get trapped in menus or popovers.
+
+## Write Mode
+
+- [y] Create a new scene at the end. - yes all ok - but something I noticed is that the headings suggestions are generic like in any script, and its not giving me the already written headings in the existing script, BUT I realised its because its a greek script, I tried with an English language and it did pick up the previous headings to offer - maybe somehting to look at
+- [y] Insert a scene before an existing scene. - yes but while doing it I realised I can only create a heading with the presets offered, because while writing the cursor jumps to the beginning of the heading making it impossible to type a legible heading - I.e. after INT. its jumps to before I 
+- [y] Insert a scene after an existing scene.
+- [y] Create and insert chapters in freewriting mode.
+- [y] Visible Text Window options behave correctly.
+- [y] Fade timing behaves correctly. - Yes but they diappaeasr abruptly - I think for all app versions, iPad etc.. we should introduce a nice slow fade.
+- [y] Scene heading suggestions appear. - yes, but not in greek
+- [y] Character name suggestions appear. - yes and both in Greek and English
+
+## Review Mode
+
+- [y] Full Script view uses proper scene numbering beside headings.
+- [y] Scene view uses proper scene numbering beside headings.
+- [y] Scene reorder works with mouse/trackpad drag.
+- [y] Mark Selection works with mouse-selected text.
+- [y] Note icon opens the connected note popover.
+- [y] Tapping a note in the side panel opens the connected note popover. - yes but it occurred to me that you cannot close the note by tapping on the note on the side once more - that should be the behavior in all platforms - so you can quickly open and close notes onee after the other from the side bar notes list
+- [y] Approve and Needs Rewrite update scene status.
+- [y] Compare versions allows choosing versions when more than two exist. - yes but it occurred to me working on a long proper script that if you want to see just the scenes with multiple versions, meaning just the edited scenes you have to squint and go down the list to see the v number in the subscript of the scene in the scene list... we should add a button that give you the option to see only the edited scenes in the scene list or all the scenes - on all platforms - probably best to be on top of the scene list pane next to reorder
+
+## Rewrite Mode
+
+- [y] Single Scene workspace works.
+- [y] All Scenes workspace works.
+- [y] Reviewed scene preview can be shown and hidden.
+- [y] Notes in reviewed scene can be shown and hidden.
+- [y] Previous/next scene panels are visually distinct and legible.
+- [y] Script element buttons behave like Write mode.
+- [n] Text style controls apply only to selected text where expected.- could not test because there is a bug with the cursor not keeping the text selection, it insects the text and jumps to the beginning  of the first word. But Laos testing the text style in WRITE mode, I cannot get the B,U,I buttons to work(not sure if that is because we always write forward, but even still in all platforms we should allow for test to be highlighted and changed in style anywhere in the visible text, including size and font type) - another small bug I found is when choosing another font , if I try to choose yet another font again, it will not register and give me the font drop-down, unless I click outside th fiont dropdown box)
+- [y] Mark Rewrite Done updates scene status.
+
+## File Workflows
+
+- [y] Save `.frdx` project from the Mac app.
+- [y] Open saved `.frdx` project from Finder/iCloud Drive. - ye sit all works but I have a question? I imported a fountain script and worked on it - that was saved somewhere right? When I saved the project files to my own directory, then I deleted the project I was working on and opened the one I had just saved form the directory I knew where to find. - so where does the app automatically save when you work on a project and have not done a save project action? And in the car of an autosave function )see below for added feature) which project would dir autosave, the one created band saved by the app or the save project option file? It should be clear and delineated to avoid any cross platform transfer of work conflicts.
+- [y] Duplicate and rename `.frdx`, then open it.
+- [y] Import Fountain.
+- [y] Import TXT.
+- [y] Import Final Draft `.fdx`.
+- [y] Export Fountain.
+- [y] Export TXT.
+- [y] Export PDF.- yes but the greek script ended up with unreadable font in the pdf - gibberish or windings or something like that - English was fine
+- [y] Export Revision PDF.
+- [y] Export Changes PDF.
+- [y] Confirm exported PDFs open correctly in Preview. - yes all good, just a feature note, it seems to be that we can push the notes pane on the right a bit narrower and give more space to the script proper, we should do that for all platforms)
+
+EXTRA THOUGHTS
+
+-we should see how the app works o the iPhone - maybe make some UI adjustments to be able to allow writing there as well
+-we should add an auto save function periodically for the project file - the idea came form the fact that I want to keep the deployment simple and dont want to hook on cloud services for syncing between iPad/Mac/iPhone etc - so I want the simple save in one place like a personal drive or iCloud folder from the Mac and open the same project in the Mac - should work with no conflicrts - having autosave should largely solve any conflict issues
+
+## Mac Decision Gate
+
+- [x] Does the iPad-on-Mac wrapper feel good enough for the first Mac test build? I think so, but I'll let you be the judge of this
+- [x] Do file pickers feel Mac-like enough? - perfect
+- [x] Do we need Mac-specific window sizing or toolbar changes? - yes
+- [x] Do we need a later Catalyst/native Mac target, or can this shared wrapper carry v1? If window/pane sizes and font sizes can be fixed this works great otherwise (some bugs notwithstanding)

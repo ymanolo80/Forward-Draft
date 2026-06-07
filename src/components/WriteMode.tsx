@@ -167,18 +167,27 @@ export function WriteMode({
     );
   };
 
+  const normalizeCommittedText = (text: string, blockElement: ScriptElement) => {
+    const singleLine = text.replace(/\n/g, "");
+    if (blockElement === "Scene Heading" || blockElement === "Character" || blockElement === "Transition") {
+      return singleLine.toUpperCase();
+    }
+    return singleLine;
+  };
+
   const commitBlock = (text = activeText, nextElement?: ScriptElement) => {
-    if (!text.trim()) return;
     const blockElement =
       project.writingMode === "freewrite"
         ? element === "Chapter Heading"
           ? "Chapter Heading"
           : "General Text"
         : element;
+    const committedText = normalizeCommittedText(text, blockElement);
+    if (!committedText.trim()) return;
     const block: DraftBlock = {
       blockId: createId("block"),
       element: blockElement,
-      text,
+      text: committedText,
       createdAt: nowIso(),
     };
     const draft = [...project.drafts, block];
@@ -190,13 +199,8 @@ export function WriteMode({
     if (nextElement) setElement(nextElement);
   };
 
-  const normalizeInput = (value: string) => {
-    if (element === "Scene Heading" || element === "Character" || element === "Transition") return value.toUpperCase();
-    return value;
-  };
-
   const updateActiveText = (value: string) => {
-    const next = normalizeInput(value);
+    const next = value.replace(/\n/g, "");
     if (next === activeText) return;
     setTypingUndoStack((history) => [...history, activeText].slice(-100));
     setTypingRedoStack([]);
@@ -439,7 +443,11 @@ export function WriteMode({
             </section>
           )}
 
-          <ToolFontControls fontSettings={fontSettings} setFontSettings={setFontSettings} onFormatSelection={formatSelection} />
+          <ToolFontControls
+            fontSettings={fontSettings}
+            setFontSettings={setFontSettings}
+            onFormatSelection={formatSelection}
+          />
 
           <section className="tool-section">
             <h3>Undo / Redo</h3>
