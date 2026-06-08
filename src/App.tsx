@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ReviewMode } from "./components/ReviewMode";
 import { RewriteMode } from "./components/RewriteMode";
 import { WriteMode } from "./components/WriteMode";
-import { exportChangesPdf, exportFountainFile, exportFullPdf, exportProjectFile, exportText } from "./lib/exports";
-import { isNativeFileServiceAvailable, openNativeTextFile, readTextFile } from "./lib/fileService";
+import { autosaveProjectFile, createProjectFile, exportChangesPdf, exportFountainFile, exportFullPdf, saveProjectFile, exportText } from "./lib/exports";
+import { isNativeFileServiceAvailable, openNativeTextFile, readNativeTextFileReference, readTextFile } from "./lib/fileService";
 import { createId, nowIso } from "./lib/ids";
 import {
   importFdxIntoData,
@@ -12,10 +12,11 @@ import {
   openProjectFileIntoData,
   type TextFileSource,
 } from "./lib/projectIO";
+import { createProjectFileDocument, parseProjectFileText, projectTitleFromFileName } from "./lib/projectFile";
 import { createProject } from "./lib/seed";
 import { parseScreenplayText } from "./lib/screenplay";
 import { emptyData, loadData, saveData } from "./lib/storage";
-import type { AppData, AppMode, CoverPage, FadeTiming, FontFamilyChoice, FontSettings, Project, VisibilityRule, WritingMode } from "./types";
+import type { AppData, AppMode, CoverPage, FadeTiming, FontFamilyChoice, FontSettings, Project, ProjectFileReference, VisibilityRule, WritingMode } from "./types";
 
 type ThemeMode = "system" | "light" | "dark";
 const SCENE_LIST_TOGGLE_EVENT = "forwarddraft:toggle-scene-list";
@@ -82,6 +83,38 @@ function defaultCoverPage(project: Project): CoverPage {
   };
 }
 
+function sameProjectFileReference(left?: ProjectFileReference, right?: ProjectFileReference) {
+  if (!left || !right) return left === right;
+  return (
+    left.adapter === right.adapter &&
+    left.fileRef === right.fileRef &&
+    left.name === right.name &&
+    Math.round(left.modifiedAt ?? 0) === Math.round(right.modifiedAt ?? 0)
+  );
+}
+
+function projectFileContentsMatch(project: Project, data: AppData, fileText: string) {
+  try {
+    const current = createProjectFileDocument(project, data);
+    const external = parseProjectFileText(fileText);
+    return JSON.stringify({
+      project: current.project,
+      versions: current.versions,
+      notes: current.notes,
+      highlights: current.highlights,
+      tasks: current.tasks,
+    }) === JSON.stringify({
+      project: external.project,
+      versions: external.versions,
+      notes: external.notes,
+      highlights: external.highlights,
+      tasks: external.tasks,
+    });
+  } catch {
+    return false;
+  }
+}
+
 export function App() {
   const [data, setDataState] = useState<AppData>(emptyData);
   const [mode, setMode] = useState<AppMode>("write");
@@ -95,6 +128,7 @@ export function App() {
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [coverOpen, setCoverOpen] = useState(false);
   const [coverDraft, setCoverDraft] = useState<CoverPage | undefined>();
+  const [externalProjectUpdate, setExternalProjectUpdate] = useState<TextFileSource | undefined>();
   const [visibility, setVisibility] = useState<VisibilityRule>("last3");
   const [fadeTiming, setFadeTiming] = useState<FadeTiming>("3s");
   const [documentZoom, setDocumentZoomState] = useState(() => {
@@ -110,6 +144,11 @@ export function App() {
     underline: false,
   });
   const optionsRef = useRef<HTMLDetailsElement>(null);
+  const projectAutosaveTimerRef = useRef<number | undefined>(undefined);
+  const fileReferenceOnlyUpdateRef = useRef(false);
+  const fileRefreshCheckingRef = useRef(false);
+  const fileRefreshPromptedRef = useRef<string | undefined>(undefined);
+  const dirtyProjectVersionsRef = useRef(new Map<string, number>());
 
   const activeProject = useMemo(
     () => data.projects.find((project) => project.projectId === data.activeProjectId) ?? data.projects[0],
@@ -135,6 +174,29 @@ export function App() {
     localStorage.setItem("forward-draft-document-zoom", String(next));
   };
 
+  const clearPendingProjectAutosave = useCallback(() => {
+    if (projectAutosaveTimerRef.current !== undefined) {
+      window.clearTimeout(projectAutosaveTimerRef.current);
+      projectAutosaveTimerRef.current = undefined;
+    }
+  }, []);
+
+  const rememberProjectFileReference = useCallback((projectId: string, fileReference: ProjectFileReference) => {
+    setDataState((current) => {
+      const existing = current.projects.find((project) => project.projectId === projectId)?.fileReference;
+      if (sameProjectFileReference(existing, fileReference)) return current;
+      fileReferenceOnlyUpdateRef.current = true;
+      const next = {
+        ...current,
+        projects: current.projects.map((project) =>
+          project.projectId === projectId ? { ...project, fileReference } : project,
+        ),
+      };
+      saveData(next).catch((error) => console.error("Project file reference save failed", error));
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [mode, data.activeProjectId]);
@@ -147,16 +209,41 @@ export function App() {
     if (activeProject.writingMode === "freewrite" && visibility === "previousScene") setVisibility("previousBlock");
   }, [activeProject, visibility]);
 
-  const setData = useCallback((next: AppData) => {
+  const markProjectDirty = useCallback((projectId: string | undefined) => {
+    if (!projectId) return 0;
+    const nextVersion = (dirtyProjectVersionsRef.current.get(projectId) ?? 0) + 1;
+    dirtyProjectVersionsRef.current.set(projectId, nextVersion);
+    return nextVersion;
+  }, []);
+
+  const clearProjectDirty = useCallback((projectId: string | undefined, version?: number) => {
+    if (!projectId) return;
+    if (version !== undefined && dirtyProjectVersionsRef.current.get(projectId) !== version) return;
+    dirtyProjectVersionsRef.current.delete(projectId);
+  }, []);
+
+  const setData = useCallback((next: AppData, options?: { dirty?: boolean }) => {
+    if (options?.dirty !== false) markProjectDirty(next.activeProjectId);
     setUndoStack((history) => [...history, data].slice(-50));
     setRedoStack([]);
     setDataState(next);
     saveData(next).catch((error) => console.error("Autosave failed", error));
-  }, [data]);
+  }, [data, markProjectDirty]);
+
+  const applyProjectSource = useCallback((source: TextFileSource, showCopyAlert = true) => {
+    const result = openProjectFileIntoData(data, source);
+    setData(result.data, { dirty: false });
+    setMode("write");
+    setOptionsOpen(false);
+    if (showCopyAlert && result.importedAsCopy) {
+      alert(`Opened "${result.originalTitle}" as "${result.title}" because that project already exists here.`);
+    }
+  }, [data, setData]);
 
   const undoLast = useCallback(() => {
     const previous = undoStack.at(-1);
     if (!previous) return;
+    markProjectDirty(previous.activeProjectId);
     setUndoStack((history) => history.slice(0, -1));
     setRedoStack((history) => [...history, data].slice(-50));
     setDataState(previous);
@@ -166,11 +253,63 @@ export function App() {
   const redoLast = useCallback(() => {
     const next = redoStack.at(-1);
     if (!next) return;
+    markProjectDirty(next.activeProjectId);
     setRedoStack((history) => history.slice(0, -1));
     setUndoStack((history) => [...history, data].slice(-50));
     setDataState(next);
     saveData(next).catch((error) => console.error("Autosave failed", error));
   }, [data, redoStack]);
+
+  useEffect(() => {
+    if (!loaded || !activeProject?.fileReference) return undefined;
+    if (fileReferenceOnlyUpdateRef.current) {
+      fileReferenceOnlyUpdateRef.current = false;
+      return undefined;
+    }
+    const dirtyVersion = dirtyProjectVersionsRef.current.get(activeProject.projectId);
+    if (!dirtyVersion) return undefined;
+    clearPendingProjectAutosave();
+    projectAutosaveTimerRef.current = window.setTimeout(() => {
+      projectAutosaveTimerRef.current = undefined;
+      autosaveProjectFile(activeProject, data)
+        .then((outcome) => {
+          if (outcome.status === "saved" && outcome.fileReference) {
+            clearProjectDirty(activeProject.projectId, dirtyVersion);
+            rememberProjectFileReference(activeProject.projectId, outcome.fileReference);
+          }
+        })
+        .catch((error) => console.error("Project file autosave failed", error));
+    }, 900);
+    return clearPendingProjectAutosave;
+  }, [activeProject, clearPendingProjectAutosave, clearProjectDirty, data, loaded, rememberProjectFileReference]);
+
+  useEffect(() => {
+    if (!loaded || !activeProject?.fileReference || externalProjectUpdate || !isNativeFileServiceAvailable()) return undefined;
+    const checkForFileRefresh = async () => {
+      if (fileRefreshCheckingRef.current || projectAutosaveTimerRef.current !== undefined) return;
+      if (dirtyProjectVersionsRef.current.has(activeProject.projectId)) return;
+      fileRefreshCheckingRef.current = true;
+      try {
+        const source = await readNativeTextFileReference(activeProject.fileReference!);
+        if (!source?.fileReference) return;
+        if (projectFileContentsMatch(activeProject, data, source.text)) {
+          rememberProjectFileReference(activeProject.projectId, source.fileReference);
+          return;
+        }
+        const knownModifiedAt = activeProject.fileReference?.modifiedAt ?? 0;
+        const externalModifiedAt = source.fileReference.modifiedAt ?? 0;
+        const promptKey = `${activeProject.projectId}:${Math.round(externalModifiedAt)}`;
+        if (externalModifiedAt <= knownModifiedAt + 1000 || fileRefreshPromptedRef.current === promptKey) return;
+        fileRefreshPromptedRef.current = promptKey;
+        setExternalProjectUpdate(source);
+      } finally {
+        fileRefreshCheckingRef.current = false;
+      }
+    };
+    const timer = window.setInterval(checkForFileRefresh, 6000);
+    void checkForFileRefresh();
+    return () => window.clearInterval(timer);
+  }, [activeProject, data, externalProjectUpdate, loaded, rememberProjectFileReference]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -221,17 +360,18 @@ export function App() {
   const hasSceneListToggle = Boolean(activeProject && (mode === "review" || mode === "rewrite"));
   const sceneListLabel = activeProject?.writingMode === "freewrite" ? "Chapters" : "Scenes";
 
-  const createNew = (writingMode: WritingMode = "script") => {
+  const createNew = async (writingMode: WritingMode = "script") => {
     const createdAt = nowIso();
     const projectId = createId("project");
+    const defaultTitle = writingMode === "script" ? "New Script Project" : "New Freewriting Project";
     const project: Project = {
       projectId,
-      title: writingMode === "script" ? "New Script Project" : "New Freewriting Project",
+      title: defaultTitle,
       writingMode,
       createdAt,
       updatedAt: createdAt,
       coverPage: {
-        title: writingMode === "script" ? "New Script Project" : "New Freewriting Project",
+        title: defaultTitle,
         writtenBy: "",
         contact: "",
         date: createdAt.slice(0, 10),
@@ -239,11 +379,36 @@ export function App() {
       drafts: [],
       scenes: [],
     };
-    setData({
+    const initialData = {
       ...data,
       projects: [...data.projects, project],
       activeProjectId: projectId,
-    });
+    };
+    const outcome = await createProjectFile(project, initialData);
+    if (outcome.status === "cancelled") return;
+
+    const title = outcome.fileReference ? (projectTitleFromFileName(outcome.fileReference.name) ?? project.title) : project.title;
+    const fileReference = outcome.fileReference ? { ...outcome.fileReference, name: outcome.fileReference.name } : undefined;
+    const savedProject: Project = {
+      ...project,
+      title,
+      coverPage: {
+        ...project.coverPage!,
+        title,
+      },
+      ...(fileReference ? { fileReference } : {}),
+    };
+    const nextData = {
+      ...data,
+      projects: [...data.projects, savedProject],
+      activeProjectId: projectId,
+    };
+    if (fileReference) {
+      await autosaveProjectFile(savedProject, nextData);
+    } else {
+      alert("Project created locally, but Forward Draft could not keep a live file location for autosave on this device.");
+    }
+    setData(nextData, { dirty: false });
     setMode("write");
   };
 
@@ -327,8 +492,9 @@ export function App() {
         linkedNoteIds: task.linkedNoteIds.map((id) => noteIdMap.get(id) ?? id),
       }));
     const createdAt = nowIso();
+    const { fileReference: _fileReference, ...projectTemplate } = activeProject;
     const project = {
-      ...activeProject,
+      ...projectTemplate,
       projectId,
       title: `${activeProject.title} Copy`,
       scenes: scenes.map((scene) => ({
@@ -363,16 +529,23 @@ export function App() {
     });
   };
 
+  const saveActiveProjectFile = async () => {
+    if (!activeProject) return;
+    clearPendingProjectAutosave();
+    const outcome = await saveProjectFile(activeProject, data);
+    if (outcome.status === "cancelled") return;
+    if (outcome.status !== "saved") {
+      alert("Forward Draft could not save this project file.");
+      return;
+    }
+    clearProjectDirty(activeProject.projectId);
+    if (outcome.fileReference) rememberProjectFileReference(activeProject.projectId, outcome.fileReference);
+  };
+
   const openProjectSource = async (source?: TextFileSource) => {
     if (!source) return;
     try {
-      const result = openProjectFileIntoData(data, source);
-      setData(result.data);
-      setMode("write");
-      setOptionsOpen(false);
-      if (result.importedAsCopy) {
-        alert(`Opened "${result.originalTitle}" as "${result.title}" because that project already exists here.`);
-      }
+      applyProjectSource(source);
     } catch (error) {
       alert(error instanceof Error ? error.message : "This project file could not be opened.");
     }
@@ -561,8 +734,8 @@ export function App() {
                       <span className="menu-chevron" aria-hidden="true">›</span>
                     </summary>
                     <div className="submenu-panel">
-                      <button onClick={() => { createNew("script"); setOptionsOpen(false); }}>New Script Project</button>
-                      <button onClick={() => { createNew("freewrite"); setOptionsOpen(false); }}>New Freewriting Project</button>
+                      <button onClick={async () => { await createNew("script"); setOptionsOpen(false); }}>New Script Project</button>
+                      <button onClick={async () => { await createNew("freewrite"); setOptionsOpen(false); }}>New Freewriting Project</button>
                       <label className="menu-file" onClick={(event) => openNativeFile(event, ["frdx"], openProjectSource)}>
                         Open Project File
                         <input
@@ -578,7 +751,7 @@ export function App() {
                       </label>
                       <button
                         onClick={async () => {
-                          if (activeProject) await exportProjectFile(activeProject, data);
+                          await saveActiveProjectFile();
                           setOptionsOpen(false);
                         }}
                         disabled={!activeProject}
@@ -718,6 +891,36 @@ export function App() {
             <footer>
               <button onClick={() => setCoverOpen(false)}>Cancel</button>
               <button className="primary" onClick={saveCoverPage}>Save Cover Page</button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {externalProjectUpdate && (
+        <div className="modal-scrim" role="dialog" aria-modal="true" aria-label="Project file update available">
+          <section className="file-refresh-dialog">
+            <header>
+              <strong>Newer Project File</strong>
+            </header>
+            <p>
+              The saved file for “{activeProject?.title ?? externalProjectUpdate.name}” changed in Files or iCloud.
+              Reload the newer version?
+            </p>
+            <footer>
+              <button onClick={() => setExternalProjectUpdate(undefined)}>Keep Current</button>
+              <button
+                className="primary"
+                onClick={() => {
+                  try {
+                    applyProjectSource(externalProjectUpdate, false);
+                    setExternalProjectUpdate(undefined);
+                  } catch (error) {
+                    alert(error instanceof Error ? error.message : "This project file could not be reloaded.");
+                  }
+                }}
+              >
+                Reload File
+              </button>
             </footer>
           </section>
         </div>

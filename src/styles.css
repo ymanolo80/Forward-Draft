@@ -1312,6 +1312,40 @@ mark {
   gap: 16px;
 }
 
+.file-refresh-dialog {
+  width: min(440px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+  backdrop-filter: blur(24px);
+}
+
+.file-refresh-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.file-refresh-dialog p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.file-refresh-dialog footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.file-refresh-dialog button {
+  min-height: 38px;
+}
+
 .cover-editor header,
 .cover-editor footer {
   display: flex;
@@ -3017,6 +3051,7 @@ mark {
   .menu-popover,
   .note-popover,
   .cover-editor,
+  .file-refresh-dialog,
   .drawer,
   .script-page,
   .rewrite-card {

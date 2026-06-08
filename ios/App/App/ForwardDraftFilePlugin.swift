@@ -8,14 +8,88 @@ public class ForwardDraftFilePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
     public let jsName = "ForwardDraftFilePlugin"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "saveFile", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "openTextFile", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "createTextFile", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "saveTextFile", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "openTextFile", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getTextFileInfo", returnType: CAPPluginReturnPromise)
     ]
 
+    private enum PendingOperation {
+        case saveCopy(URL)
+        case createProject(URL)
+        case open
+    }
+
+    private struct StoredFileReference: Codable {
+        let bookmark: String?
+        let url: String?
+    }
+
     private var pendingCall: CAPPluginCall?
-    private var temporaryExportURL: URL?
+    private var pendingOperation: PendingOperation?
     private var pickerPresented = false
 
     @objc func saveFile(_ call: CAPPluginCall) {
+        prepareExport(call: call, asCopy: true)
+    }
+
+    @objc func createTextFile(_ call: CAPPluginCall) {
+        prepareExport(call: call, asCopy: false)
+    }
+
+    @objc func saveTextFile(_ call: CAPPluginCall) {
+        guard pendingCall == nil else {
+            call.reject("Another file operation is already open.")
+            return
+        }
+        guard let fileRef = call.getString("fileRef"), let bookmarkData = Data(base64Encoded: fileRef) else {
+            call.reject("Missing file reference.")
+            return
+        }
+        guard let base64 = call.getString("base64"), let data = Data(base64Encoded: base64) else {
+            call.reject("Missing file data.")
+            return
+        }
+
+        do {
+            let resolved = try resolveFileReference(fileRef, fallbackBookmarkData: bookmarkData)
+            try writeCoordinated(data, to: resolved.url)
+            call.resolve([
+                "name": resolved.url.lastPathComponent,
+                "status": "saved",
+                "fileRef": resolved.stale ? try makeBookmark(for: resolved.url) : fileRef,
+                "modifiedAt": try modifiedAt(for: resolved.url)
+            ])
+        } catch {
+            call.reject("Could not save the project file.", nil, error)
+        }
+    }
+
+    @objc func getTextFileInfo(_ call: CAPPluginCall) {
+        guard let fileRef = call.getString("fileRef"), let bookmarkData = Data(base64Encoded: fileRef) else {
+            call.reject("Missing file reference.")
+            return
+        }
+
+        do {
+            let resolved = try resolveFileReference(fileRef, fallbackBookmarkData: bookmarkData)
+            let data = try readCoordinated(from: resolved.url)
+            guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .utf16) else {
+                call.reject("The selected file is not readable text.")
+                return
+            }
+            call.resolve([
+                "name": resolved.url.lastPathComponent,
+                "text": text,
+                "fileRef": resolved.stale ? try makeBookmark(for: resolved.url) : fileRef,
+                "modifiedAt": try modifiedAt(for: resolved.url)
+            ])
+        } catch {
+            call.reject("Could not read the project file.", nil, error)
+        }
+    }
+
+    private func prepareExport(call: CAPPluginCall, asCopy: Bool) {
         guard pendingCall == nil else {
             call.reject("Another file operation is already open.")
             return
@@ -33,10 +107,10 @@ public class ForwardDraftFilePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
             let safeName = name.replacingOccurrences(of: "/", with: "-")
             let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(safeName)
             try data.write(to: fileURL, options: .atomic)
-            temporaryExportURL = fileURL
+            pendingOperation = asCopy ? .saveCopy(fileURL) : .createProject(fileURL)
             pendingCall = call
 
-            let picker = UIDocumentPickerViewController(forExporting: [fileURL], asCopy: true)
+            let picker = UIDocumentPickerViewController(forExporting: [fileURL], asCopy: asCopy)
             picker.delegate = self
             picker.modalPresentationStyle = .formSheet
             presentPicker(picker, call: call)
@@ -57,8 +131,9 @@ public class ForwardDraftFilePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
             .filter { !$0.isEmpty }
         let types = extensions.compactMap { UTType(filenameExtension: $0) }
         pendingCall = call
+        pendingOperation = .open
 
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types.isEmpty ? [.data] : types, asCopy: true)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types.isEmpty ? [.data] : types, asCopy: false)
         picker.delegate = self
         picker.allowsMultipleSelection = false
         picker.modalPresentationStyle = .formSheet
@@ -101,7 +176,13 @@ public class ForwardDraftFilePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
             return
         }
 
-        if let temporaryExportURL {
+        guard let operation = pendingOperation else {
+            call.reject("No file operation is pending.")
+            cleanup()
+            return
+        }
+
+        if case let .saveCopy(temporaryExportURL) = operation {
             call.resolve([
                 "name": temporaryExportURL.lastPathComponent,
                 "status": "saved"
@@ -116,6 +197,27 @@ public class ForwardDraftFilePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
             return
         }
 
+        if case .createProject = operation {
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            do {
+                call.resolve([
+                    "name": url.lastPathComponent,
+                    "status": "saved",
+                    "fileRef": try makeBookmark(for: url),
+                    "modifiedAt": try modifiedAt(for: url)
+                ])
+            } catch {
+                call.reject("Could not remember the project file.", nil, error)
+            }
+            cleanup()
+            return
+        }
+
         let didAccess = url.startAccessingSecurityScopedResource()
         defer {
             if didAccess {
@@ -124,7 +226,7 @@ public class ForwardDraftFilePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
         }
 
         do {
-            let data = try Data(contentsOf: url)
+            let data = try readCoordinated(from: url)
             guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .utf16) else {
                 call.reject("The selected file is not readable text.")
                 cleanup()
@@ -132,7 +234,9 @@ public class ForwardDraftFilePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
             }
             call.resolve([
                 "name": url.lastPathComponent,
-                "text": text
+                "text": text,
+                "fileRef": try makeBookmark(for: url),
+                "modifiedAt": try modifiedAt(for: url)
             ])
         } catch {
             call.reject("Could not read the selected file.", nil, error)
@@ -140,11 +244,123 @@ public class ForwardDraftFilePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
         cleanup()
     }
 
+    private func resolveFileReference(_ fileRef: String, fallbackBookmarkData: Data) throws -> (url: URL, stale: Bool) {
+        if
+            let envelopeData = Data(base64Encoded: fileRef),
+            let reference = try? JSONDecoder().decode(StoredFileReference.self, from: envelopeData)
+        {
+            if let bookmark = reference.bookmark, let bookmarkData = Data(base64Encoded: bookmark) {
+                var stale = false
+                let url = try URL(
+                    resolvingBookmarkData: bookmarkData,
+                    options: [],
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &stale
+                )
+                return (url, stale)
+            }
+            if let urlString = reference.url, let url = URL(string: urlString) {
+                return (url, false)
+            }
+        }
+
+        var stale = false
+        let url = try URL(
+            resolvingBookmarkData: fallbackBookmarkData,
+            options: [],
+            relativeTo: nil,
+            bookmarkDataIsStale: &stale
+        )
+        return (url, stale)
+    }
+
+    private func readCoordinated(from url: URL) throws -> Data {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        var coordinationError: NSError?
+        var readResult: Result<Data, Error>?
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { coordinatedURL in
+            readResult = Result {
+                try Data(contentsOf: coordinatedURL)
+            }
+        }
+        if let coordinationError {
+            throw coordinationError
+        }
+        return try readResult?.get() ?? Data(contentsOf: url)
+    }
+
+    private func writeCoordinated(_ data: Data, to url: URL) throws {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        var coordinationError: NSError?
+        var writeResult: Result<Void, Error>?
+        NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { coordinatedURL in
+            writeResult = Result {
+                try data.write(to: coordinatedURL, options: .atomic)
+            }
+        }
+        if coordinationError != nil {
+            try writeDirect(data, to: url)
+        } else {
+            do {
+                try writeResult?.get()
+            } catch {
+                try writeDirect(data, to: url)
+            }
+        }
+
+        let writtenData = try readCoordinated(from: url)
+        guard writtenData == data else {
+            throw NSError(
+                domain: "ForwardDraftFilePlugin",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "The file did not contain the saved project data after writing."]
+            )
+        }
+    }
+
+    private func writeDirect(_ data: Data, to url: URL) throws {
+        do {
+            try data.write(to: url, options: [])
+        } catch {
+            try data.write(to: url, options: .atomic)
+        }
+    }
+
+    private func makeBookmark(for url: URL) throws -> String {
+        let bookmark = try url.bookmarkData(
+            options: [],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+        let reference = StoredFileReference(
+            bookmark: bookmark.base64EncodedString(),
+            url: url.absoluteString
+        )
+        return try JSONEncoder().encode(reference).base64EncodedString()
+    }
+
+    private func modifiedAt(for url: URL) throws -> Double {
+        let values = try url.resourceValues(forKeys: [.contentModificationDateKey])
+        return (values.contentModificationDate ?? Date()).timeIntervalSince1970 * 1000
+    }
+
     private func cleanup() {
-        if let temporaryExportURL {
+        if case let .saveCopy(temporaryExportURL) = pendingOperation {
             try? FileManager.default.removeItem(at: temporaryExportURL)
         }
-        temporaryExportURL = nil
+        pendingOperation = nil
         pendingCall = nil
         pickerPresented = false
     }

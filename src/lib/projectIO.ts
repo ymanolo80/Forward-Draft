@@ -1,4 +1,4 @@
-import type { AppData, Project } from "../types";
+import type { AppData, Project, ProjectFileReference } from "../types";
 import { importFountainProject } from "./fountain";
 import { appendProjectFileDocument, parseProjectFileText, projectTitleFromFileName } from "./projectFile";
 import { importFdxProject, importTxtProject, type ImportedScriptProject } from "./scriptImport";
@@ -6,6 +6,7 @@ import { importFdxProject, importTxtProject, type ImportedScriptProject } from "
 export interface TextFileSource {
   name: string;
   text: string;
+  fileReference?: ProjectFileReference;
 }
 
 export interface OpenProjectResult {
@@ -33,9 +34,48 @@ function uniqueProjectTitle(title: string, data: AppData) {
 
 export function openProjectFileIntoData(data: AppData, source: TextFileSource): OpenProjectResult {
   const projectFile = parseProjectFileText(source.text);
+  const fileTitle = projectTitleFromFileName(source.name);
+  const existingProject = data.projects.find((project) => project.projectId === projectFile.project.projectId);
+  if (existingProject) {
+    const oldSceneIds = new Set(existingProject.scenes.map((scene) => scene.sceneId));
+    const title = fileTitle ?? projectFile.project.title;
+    const project: Project = {
+      ...projectFile.project,
+      title,
+      coverPage: projectFile.project.coverPage ? { ...projectFile.project.coverPage, title } : undefined,
+      fileReference: source.fileReference ? { ...source.fileReference, name: source.name } : existingProject.fileReference,
+    };
+
+    return {
+      data: {
+        ...data,
+        projects: data.projects.map((item) => (item.projectId === project.projectId ? project : item)),
+        versions: [...data.versions.filter((version) => !oldSceneIds.has(version.sceneId)), ...projectFile.versions],
+        notes: [...data.notes.filter((note) => !oldSceneIds.has(note.sceneId)), ...projectFile.notes],
+        highlights: [...data.highlights.filter((highlight) => !oldSceneIds.has(highlight.sceneId)), ...projectFile.highlights],
+        tasks: [...data.tasks.filter((task) => !oldSceneIds.has(task.sceneId)), ...projectFile.tasks],
+        activeProjectId: project.projectId,
+      },
+      importedAsCopy: false,
+      originalTitle: projectFile.project.title,
+      title: project.title,
+    };
+  }
+
   const result = appendProjectFileDocument(data, projectFile, { preferredTitle: projectTitleFromFileName(source.name) });
+  const fileReference = source.fileReference;
+  const nextData = fileReference
+    ? {
+        ...result.data,
+        projects: result.data.projects.map((project) =>
+          project.projectId === result.projectId
+            ? { ...project, fileReference: { ...fileReference, name: source.name } }
+            : project,
+        ),
+      }
+    : result.data;
   return {
-    data: result.data,
+    data: nextData,
     importedAsCopy: result.importedAsCopy,
     originalTitle: projectFile.project.title,
     title: result.title,

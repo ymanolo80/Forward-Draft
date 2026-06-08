@@ -52,7 +52,7 @@ describe("Forward Draft project files", () => {
     expect(result.data.projects[0]?.title).toBe("Renamed Fixture");
   });
 
-  it("imports a duplicate .frdx as a safe copy with new ids", () => {
+  it("reopens an already-loaded .frdx by refreshing the existing project", () => {
     const first = openProjectFileIntoData(emptyData(), {
       name: "Fixture Project.frdx",
       text: fixtureText("basic-project.frdx"),
@@ -62,11 +62,10 @@ describe("Forward Draft project files", () => {
       text: fixtureText("basic-project.frdx"),
     });
 
-    expect(second.importedAsCopy).toBe(true);
-    expect(second.data.projects).toHaveLength(2);
-    expect(second.data.projects[1]?.title).toBe("Fixture Project Copy");
-    expect(second.data.projects[1]?.projectId).not.toBe(second.data.projects[0]?.projectId);
-    expect(second.data.projects[1]?.scenes[0]?.sceneId).not.toBe(second.data.projects[0]?.scenes[0]?.sceneId);
+    expect(second.importedAsCopy).toBe(false);
+    expect(second.data.projects).toHaveLength(1);
+    expect(second.data.projects[0]?.title).toBe("Fixture Project");
+    expect(second.data.activeProjectId).toBe(first.data.activeProjectId);
   });
 
   it("serializes a parsed project back to the .frdx signature format", () => {
@@ -86,6 +85,33 @@ describe("Forward Draft project files", () => {
     expect(serialized.startsWith("FRDX/1\n")).toBe(true);
     expect(reparsed.project.title).toBe("Fixture Project");
     expect(reparsed.notes).toHaveLength(1);
+  });
+
+  it("keeps native file references out of portable .frdx project files", () => {
+    const document = parseProjectFileText(fixtureText("basic-project.frdx"));
+    const project = {
+      ...document.project,
+      fileReference: {
+        adapter: "native" as const,
+        fileRef: "device-only-bookmark",
+        name: "Fixture Project.frdx",
+      },
+    };
+    const data: AppData = {
+      projects: [project],
+      versions: document.versions,
+      notes: document.notes,
+      highlights: document.highlights,
+      tasks: document.tasks,
+      activeProjectId: project.projectId,
+    };
+
+    const serialized = serializeProjectFile(project, data);
+    const rawPayload = JSON.parse(serialized.replace(/^FRDX\/1\r?\n/, ""));
+    const reparsed = parseProjectFileText(serialized);
+
+    expect(rawPayload.project.fileReference).toBeUndefined();
+    expect(reparsed.project.fileReference).toBeUndefined();
   });
 
   it("creates clean project filenames and titles", () => {

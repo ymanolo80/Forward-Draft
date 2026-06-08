@@ -1,10 +1,66 @@
 import jsPDF from "jspdf";
-import type { AppData, CoverPage, Project, ReviewNote, Scene, SceneVersion } from "../types";
-import { savePortableFile, type FileSaveResult } from "./fileService";
+import type { AppData, CoverPage, Project, ProjectFileReference, ReviewNote, Scene, SceneVersion } from "../types";
+import {
+  createPortableFile,
+  savePortableFile,
+  savePortableFileToReference,
+  type FileSaveResult,
+  type PortableFile,
+} from "./fileService";
 import { PROJECT_FILE_MIME, projectFileName, serializeProjectFile } from "./projectFile";
 import { parseScreenplayText, type ScreenplayTextBlock } from "./screenplay";
 
 export type ProjectFileSaveResult = FileSaveResult;
+
+export interface ProjectFileSaveOutcome {
+  status: FileSaveResult | "unavailable";
+  fileReference?: ProjectFileReference;
+}
+
+function projectPortableFile(project: Project, data: AppData): PortableFile {
+  return {
+    name: project.fileReference?.name || projectFileName(project),
+    mimeType: PROJECT_FILE_MIME,
+    content: serializeProjectFile(project, data),
+  };
+}
+
+const projectFilePickerOptions = {
+  description: "Forward Draft project",
+  accept: {
+    [PROJECT_FILE_MIME]: [".frdx"],
+  },
+};
+
+export async function createProjectFile(project: Project, data: AppData): Promise<ProjectFileSaveOutcome> {
+  const outcome = await createPortableFile(projectPortableFile(project, data), projectFilePickerOptions);
+  return outcome;
+}
+
+export async function saveProjectFile(project: Project, data: AppData): Promise<ProjectFileSaveOutcome> {
+  if (project.fileReference) {
+    const outcome = await savePortableFileToReference(project.fileReference, projectPortableFile(project, data));
+    if (outcome) {
+      return {
+        status: outcome.status,
+        fileReference: outcome.fileReference ?? project.fileReference,
+      };
+    }
+  }
+
+  const outcome = await createPortableFile(projectPortableFile(project, data), projectFilePickerOptions);
+  return outcome;
+}
+
+export async function autosaveProjectFile(project: Project, data: AppData): Promise<ProjectFileSaveOutcome> {
+  if (!project.fileReference) return { status: "unavailable" };
+  const outcome = await savePortableFileToReference(project.fileReference, projectPortableFile(project, data));
+  if (!outcome) return { status: "unavailable" };
+  return {
+    status: outcome.status,
+    fileReference: outcome.fileReference ?? project.fileReference,
+  };
+}
 
 export async function exportProjectFile(project: Project, data: AppData): Promise<ProjectFileSaveResult> {
   return savePortableFile(
@@ -13,12 +69,7 @@ export async function exportProjectFile(project: Project, data: AppData): Promis
       mimeType: PROJECT_FILE_MIME,
       content: serializeProjectFile(project, data),
     },
-    {
-      description: "Forward Draft project",
-      accept: {
-        [PROJECT_FILE_MIME]: [".frdx"],
-      },
-    },
+    projectFilePickerOptions,
   );
 }
 

@@ -54,6 +54,13 @@ export interface CoverPage {
   date: string;
 }
 
+export interface ProjectFileReference {
+  adapter: "native";
+  fileRef: string;
+  name: string;
+  modifiedAt?: number;
+}
+
 export interface Project {
   projectId: string;
   title: string;
@@ -63,6 +70,7 @@ export interface Project {
   drafts: DraftBlock[];
   scenes: Scene[];
   coverPage?: CoverPage;
+  fileReference?: ProjectFileReference;
 }
 
 export interface Scene {

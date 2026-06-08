@@ -350,12 +350,22 @@ export function parseProjectFileText(text: string): ProjectFileDocument {
 
 export function createProjectFileDocument(project: Project, data: AppData): ProjectFileDocument {
   const sceneIds = new Set(project.scenes.map((scene) => scene.sceneId));
+  const portableProject: Project = {
+    projectId: project.projectId,
+    title: project.title,
+    writingMode: project.writingMode,
+    createdAt: project.createdAt,
+    updatedAt: project.updatedAt,
+    drafts: project.drafts,
+    scenes: project.scenes,
+    coverPage: project.coverPage,
+  };
   return {
     app: APP_NAME,
     kind: PROJECT_FILE_KIND,
     schemaVersion: PROJECT_FILE_SCHEMA_VERSION,
     savedAt: nowIso(),
-    project,
+    project: portableProject,
     versions: data.versions.filter((version) => sceneIds.has(version.sceneId)),
     notes: data.notes.filter((note) => sceneIds.has(note.sceneId)),
     highlights: data.highlights.filter((highlight) => sceneIds.has(highlight.sceneId)),

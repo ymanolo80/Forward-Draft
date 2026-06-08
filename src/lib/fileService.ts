@@ -1,10 +1,12 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import type { ProjectFileReference } from "../types";
 
 export type FileSaveResult = "saved" | "shared" | "downloaded" | "cancelled";
 
 export interface HostReadableFile {
   name: string;
   text: () => Promise<string>;
+  fileReference?: ProjectFileReference;
 }
 
 export interface PortableFile {
@@ -18,11 +20,19 @@ interface SavePortableFileOptions {
   accept: Record<string, string[]>;
 }
 
-type NativeFileResult = { name?: string; text?: string; status?: string };
+export interface PortableFileSaveOutcome {
+  status: FileSaveResult;
+  fileReference?: ProjectFileReference;
+}
+
+type NativeFileResult = { name?: string; text?: string; status?: string; fileRef?: string; modifiedAt?: number };
 
 interface NativeForwardDraftFilePlugin {
   saveFile(options: { name: string; mimeType: string; base64: string }): Promise<NativeFileResult>;
+  createTextFile(options: { name: string; mimeType: string; base64: string }): Promise<NativeFileResult>;
+  saveTextFile(options: { fileRef: string; base64: string }): Promise<NativeFileResult>;
   openTextFile(options: { extensions: string[] }): Promise<NativeFileResult>;
+  getTextFileInfo(options: { fileRef: string }): Promise<NativeFileResult>;
 }
 
 const NativeForwardDraftFiles = registerPlugin<NativeForwardDraftFilePlugin>("ForwardDraftFilePlugin");
@@ -39,6 +49,16 @@ type SaveFilePicker = (options: {
     close: () => Promise<void>;
   }>;
 }>;
+
+function fileReferenceFromNativeResult(result: NativeFileResult): ProjectFileReference | undefined {
+  if (!result.fileRef || !result.name) return undefined;
+  return {
+    adapter: "native",
+    fileRef: result.fileRef,
+    name: result.name,
+    modifiedAt: typeof result.modifiedAt === "number" ? result.modifiedAt : undefined,
+  };
+}
 
 function blobFor(file: PortableFile) {
   return file.content instanceof Blob ? file.content : new Blob([file.content], { type: file.mimeType });
@@ -86,6 +106,49 @@ async function saveWithNativeAdapter(file: PortableFile): Promise<"saved" | "can
   }
 }
 
+async function createWithNativeAdapter(file: PortableFile): Promise<PortableFileSaveOutcome | false> {
+  if (!isNativeFileServiceAvailable()) return false;
+
+  try {
+    const result = await NativeForwardDraftFiles.createTextFile({
+      name: file.name,
+      mimeType: file.mimeType,
+      base64: await blobToBase64(blobFor(file)),
+    });
+    if (result.status === "cancelled") return { status: "cancelled" };
+    return {
+      status: "saved",
+      fileReference: fileReferenceFromNativeResult(result),
+    };
+  } catch (error) {
+    if (isCancelled(error)) return { status: "cancelled" };
+    console.error("Native file creation failed", error);
+    return false;
+  }
+}
+
+export async function savePortableFileToReference(
+  reference: ProjectFileReference,
+  file: PortableFile,
+): Promise<PortableFileSaveOutcome | false> {
+  if (reference.adapter !== "native" || !isNativeFileServiceAvailable()) return false;
+
+  try {
+    const result = await NativeForwardDraftFiles.saveTextFile({
+      fileRef: reference.fileRef,
+      base64: await blobToBase64(blobFor(file)),
+    });
+    return {
+      status: result.status === "cancelled" ? "cancelled" : "saved",
+      fileReference: fileReferenceFromNativeResult(result) ?? reference,
+    };
+  } catch (error) {
+    if (isCancelled(error)) return { status: "cancelled" };
+    console.error("Native autosave failed", error);
+    return false;
+  }
+}
+
 export async function openNativeTextFile(extensions: string[]) {
   if (!isNativeFileServiceAvailable()) return undefined;
 
@@ -94,10 +157,32 @@ export async function openNativeTextFile(extensions: string[]) {
       extensions: extensions.map((extension) => extension.replace(/^\./, "")),
     });
     if (!result.name || typeof result.text !== "string") return undefined;
-    return { name: result.name, text: result.text };
+    return {
+      name: result.name,
+      text: result.text,
+      fileReference: fileReferenceFromNativeResult(result),
+    };
   } catch (error) {
     if (isCancelled(error)) return null;
     console.error("Native file open failed", error);
+    return undefined;
+  }
+}
+
+export async function readNativeTextFileReference(reference: ProjectFileReference) {
+  if (reference.adapter !== "native" || !isNativeFileServiceAvailable()) return undefined;
+
+  try {
+    const result = await NativeForwardDraftFiles.getTextFileInfo({ fileRef: reference.fileRef });
+    if (!result.name || typeof result.text !== "string") return undefined;
+    return {
+      name: result.name,
+      text: result.text,
+      fileReference: fileReferenceFromNativeResult(result) ?? reference,
+    };
+  } catch (error) {
+    if (isCancelled(error)) return null;
+    console.error("Native file refresh failed", error);
     return undefined;
   }
 }
@@ -177,9 +262,24 @@ export async function savePortableFile(file: PortableFile, options: SavePortable
   return "downloaded";
 }
 
+export async function createPortableFile(file: PortableFile, options: SavePortableFileOptions): Promise<PortableFileSaveOutcome> {
+  const createdWithNative = await createWithNativeAdapter(file);
+  if (createdWithNative) return createdWithNative;
+
+  const savedWithPicker = await saveWithBrowserPicker(file, options);
+  if (savedWithPicker) return { status: savedWithPicker };
+
+  const sharedWithHost = await shareWithHost(file);
+  if (sharedWithHost) return { status: sharedWithHost };
+
+  downloadInBrowser(file);
+  return { status: "downloaded" };
+}
+
 export async function readTextFile(file: HostReadableFile) {
   return {
     name: file.name,
     text: await file.text(),
+    fileReference: file.fileReference,
   };
 }
