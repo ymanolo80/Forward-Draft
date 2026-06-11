@@ -354,7 +354,6 @@ export function App() {
     "--draft-font-style": "normal",
     "--draft-text-decoration": "none",
     "--page-zoom": String(documentZoom),
-    "--page-view-width": `${820 * documentZoom}px`,
     "--draft-view-font-size": `${fontSettings.size * documentZoom}px`,
   } as CSSProperties;
   const hasSceneListToggle = Boolean(activeProject && (mode === "review" || mode === "rewrite"));

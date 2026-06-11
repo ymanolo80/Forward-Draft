@@ -22,7 +22,8 @@
   --draft-view-font-size: 20px;
   --draft-line-height: 1.6;
   --page-zoom: 1.25;
-  --page-view-width: 1025px;
+  --page-base-width: 820px;
+  --page-view-width: calc(var(--page-base-width) * var(--page-zoom));
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -980,7 +981,6 @@ p {
   box-shadow: 0 4px 0 currentColor, 0 8px 0 currentColor;
 }
 
-.review-page,
 .compare-page {
   width: 100%;
 }
@@ -1827,8 +1827,7 @@ mark {
 }
 
 .rewrite-visual-editor {
-  display: grid;
-  align-content: start;
+  display: block;
   gap: 0;
   outline: 0;
   overflow: auto;
@@ -1836,8 +1835,11 @@ mark {
 }
 
 .rewrite-visual-line {
+  display: block;
+  position: static;
   min-height: calc(var(--draft-font-size) * var(--draft-line-height));
   outline: 0;
+  white-space: pre-wrap;
 }
 
 .rewrite-visual-line.blank-line {
@@ -2689,6 +2691,31 @@ textarea:focus-visible,
   width: min(100%, var(--page-view-width));
 }
 
+@media (min-width: 1500px) {
+  :root {
+    --page-base-width: 944px;
+  }
+
+  .mode-workspace {
+    width: min(calc(100% - 48px), 2040px);
+    gap: 24px;
+  }
+
+  .review-layout-shell,
+  .rewrite-layout {
+    grid-template-columns: 280px minmax(900px, 1fr) 300px;
+  }
+
+  .review-layout-shell.scenes-collapsed,
+  .rewrite-layout.queue-collapsed {
+    grid-template-columns: minmax(980px, 1fr) 300px;
+  }
+
+  .review-stage {
+    grid-template-columns: minmax(0, min(100%, calc(var(--page-view-width) + 80px)));
+  }
+}
+
 .script-page {
   min-height: min(1160px, calc(100dvh - 154px - var(--safe-top) - var(--safe-bottom)));
   font-size: var(--draft-view-font-size);
@@ -2786,8 +2813,34 @@ textarea:focus-visible,
 
 .single-rewrite-main > .rewrite-card {
   max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.single-rewrite-main > .rewrite-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.single-rewrite-main > .rewrite-card .rewrite-source {
+  flex: 0 1 clamp(170px, 28%, 320px);
+  min-height: 160px;
   overflow: auto;
   overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.single-rewrite-main > .rewrite-card .rewrite-visual-editor {
+  flex: 1 1 620px;
+  min-height: min(540px, 56dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.single-rewrite-main > .rewrite-card:not(.has-reviewed-source) .rewrite-visual-editor {
+  flex-basis: 100%;
+  min-height: min(760px, calc(100dvh - 180px - var(--safe-top) - var(--safe-bottom)));
 }
 
 .mode-tools,
