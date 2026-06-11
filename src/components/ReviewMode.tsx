@@ -3,6 +3,7 @@ import { ToolFontControls } from "./ToolFontControls";
 import { InlineFountainText } from "./InlineFountainText";
 import type { AppData, FontSettings, Highlight, Project, ReviewNote, Scene, SceneVersion } from "../types";
 import { createId, nowIso } from "../lib/ids";
+import { pageCountLabel, writingModePageCount } from "../lib/pageMetrics";
 import { selectedTextRange } from "../lib/textSelection";
 import { elementClass } from "../lib/fountain";
 import { parseScreenplayText } from "../lib/screenplay";
@@ -176,6 +177,8 @@ export function ReviewMode({
     data.notes.filter((note) => note.sceneId === item.sceneId && note.versionId === version?.versionId);
   const sceneHighlights = (item: Scene, version?: SceneVersion) =>
     data.highlights.filter((highlight) => highlight.sceneId === item.sceneId && highlight.versionId === version?.versionId);
+  const scenePages = (version?: SceneVersion) =>
+    pageCountLabel(writingModePageCount(project.writingMode, version?.text ?? ""));
 
   const updateScene = (nextScene: Scene) => {
     setData({
@@ -474,7 +477,7 @@ export function ReviewMode({
               <span className="scene-number">{item.order}</span>
               <span className="scene-list-heading">{item.heading}</span>
             </strong>
-            <small>{item.status} · V{version?.versionNumber ?? 1} · {noteCount} notes</small>
+            <small>{item.status} · V{version?.versionNumber ?? 1} · {noteCount} notes · {scenePages(version)}</small>
           </button>
         </div>
         {reordering && dropIndex === sortedScenes.length && index === sortedScenes.length - 1 && <div className="drop-line" />}
@@ -694,7 +697,19 @@ export function ReviewMode({
             </section>
 
             <section className="tool-section">
-              <h3>Mark</h3>
+              <h3>Selected {sceneLabel}</h3>
+              <div className="tool-summary">
+                {project.writingMode === "script" ? (
+                  <div className="tool-selected-heading">
+                    <span className="screenplay-scene-number">{scene.order}</span>
+                    <strong>{scene.heading}</strong>
+                  </div>
+                ) : (
+                  <strong>Chapter {scene.order}: {scene.heading}</strong>
+                )}
+                <span>{sceneLabel} {scene.order} · {scene.status} · V{current.versionNumber}</span>
+                <span>{notes.length} open note{notes.length === 1 ? "" : "s"} · {scenePages(current)}</span>
+              </div>
               <p className="tool-hint">{selection ? selection.text : "Select text on the page to mark it."}</p>
               <div className="tool-button-row">
                 <button className="validate-button" onClick={openComposer} disabled={!selection}>Mark Selection</button>

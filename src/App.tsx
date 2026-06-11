@@ -14,7 +14,7 @@ import {
 } from "./lib/projectIO";
 import { createProjectFileDocument, parseProjectFileText, projectTitleFromFileName } from "./lib/projectFile";
 import { createProject } from "./lib/seed";
-import { parseScreenplayText } from "./lib/screenplay";
+import { screenplayPageCount, wordCount } from "./lib/pageMetrics";
 import { emptyData, loadData, saveData } from "./lib/storage";
 import type { AppData, AppMode, CoverPage, FadeTiming, FontFamilyChoice, FontSettings, Project, ProjectFileReference, VisibilityRule, WritingMode } from "./types";
 
@@ -37,35 +37,6 @@ function projectText(project: Project | undefined, data: AppData) {
     .trim();
   if (versionText) return versionText;
   return project.drafts.map((block) => block.text).join("\n");
-}
-
-function wordCount(text: string) {
-  return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
-function wrappedLineCount(text: string, charactersPerLine: number) {
-  if (!text.trim()) return 1;
-  return text
-    .split("\n")
-    .reduce((count, line) => count + Math.max(1, Math.ceil(line.trim().length / charactersPerLine)), 0);
-}
-
-function screenplayPageCount(text: string) {
-  if (!text.trim()) return 1;
-  const blocks = parseScreenplayText(text);
-  const lines = blocks.reduce((count, block) => {
-    const charactersPerLine =
-      block.element === "Dialogue"
-        ? 34
-        : block.element === "Parenthetical"
-          ? 28
-          : block.element === "Character" || block.element === "Transition" || block.element === "Scene Heading"
-            ? 60
-            : 58;
-    const gap = block.hasGapBefore ? 1 : 0;
-    return count + gap + wrappedLineCount(block.text, charactersPerLine);
-  }, 0);
-  return Math.max(1, Math.ceil(lines / 55));
 }
 
 function projectPageCount(project: Project | undefined, text: string) {

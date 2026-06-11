@@ -5,6 +5,7 @@ import { VisualScreenplayEditor, type VisualScreenplayEditorHandle } from "./Vis
 import type { AppData, FontSettings, Project, ReviewNote, Scene, ScriptElement } from "../types";
 import { createId, nowIso } from "../lib/ids";
 import { elementClass, scriptElements } from "../lib/fountain";
+import { pageCountLabel, writingModePageCount } from "../lib/pageMetrics";
 import { parseScreenplayText, type ScreenplayTextBlock } from "../lib/screenplay";
 import { screenplayElementSuggestions } from "../lib/scriptSuggestions";
 
@@ -250,6 +251,7 @@ export function RewriteMode({
   const canUndoRewriteDraft = selectedSceneIdForHistory ? (draftUndoStack[selectedSceneIdForHistory]?.length ?? 0) > 0 : false;
   const canRedoRewriteDraft = selectedSceneIdForHistory ? (draftRedoStack[selectedSceneIdForHistory]?.length ?? 0) > 0 : false;
   const visibleScriptElements = scriptElements.filter((item) => item !== "Note" && item !== "Shot");
+  const scenePages = (text: string) => pageCountLabel(writingModePageCount(project.writingMode, text));
 
   const updateDraftText = (sceneId: string, nextText: string) => {
     setDrafts((current) => {
@@ -403,6 +405,7 @@ export function RewriteMode({
             <span>{scene.status}</span>
             <span>V{version?.versionNumber ?? 1}</span>
             <span>{notes.length} notes</span>
+            <span>{scenePages(text)}</span>
           </div>
         </header>
         {showContext && previousVersion && !compact && (
@@ -461,7 +464,7 @@ export function RewriteMode({
                     <span className="scene-list-heading">{item.scene.heading}</span>
                   </strong>
                   <small>
-                    {item.scene.status} · V{item.version?.versionNumber ?? 1} · {item.notes.length} notes
+                    {item.scene.status} · V{item.version?.versionNumber ?? 1} · {item.notes.length} notes · {scenePages(item.version?.text ?? "")}
                   </small>
                 </button>
               );
@@ -531,8 +534,8 @@ export function RewriteMode({
                 ) : (
                   <strong>Chapter {selected.scene.order}: {selected.scene.heading}</strong>
                 )}
-                <span>{sectionLabel} {selected.scene.order} · {selected.scene.status}</span>
-                <span>{selected.notes.length} open note{selected.notes.length === 1 ? "" : "s"}</span>
+                <span>{sectionLabel} {selected.scene.order} · {selected.scene.status} · V{selected.version?.versionNumber ?? 1}</span>
+                <span>{selected.notes.length} open note{selected.notes.length === 1 ? "" : "s"} · {scenePages(selectedDraftText)}</span>
               </div>
               <button className="validate-button" onClick={() => markDone(selected.scene, selectedDraftText)}>
                 Mark Rewrite Done
