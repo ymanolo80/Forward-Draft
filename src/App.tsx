@@ -604,12 +604,14 @@ export function App() {
               <span className="sidebar-toggle-glyph" aria-hidden="true" />
               <span>{sceneListLabel}</span>
             </button>
-          ) : (
-            <strong>Forward Draft</strong>
-          )}
+          ) : null}
         </div>
 
         <div className="topbar-center">
+          <div className="topbar-brand" aria-label="Forward Draft">
+            <img src="/forward-draft-mark.svg" alt="" aria-hidden="true" />
+            <strong>Forward Draft</strong>
+          </div>
           <nav className="mode-tabs" aria-label="Workflow modes">
             <button className={mode === "write" ? "active" : ""} onClick={() => setMode("write")}>
               Write

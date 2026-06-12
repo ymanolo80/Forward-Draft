@@ -98,8 +98,8 @@ p {
 
 .global-topbar {
   flex: 0 0 auto;
-  min-height: calc(58px + var(--safe-top));
-  padding: calc(10px + var(--safe-top)) calc(18px + var(--safe-right)) 10px calc(18px + var(--safe-left));
+  min-height: calc(70px + var(--safe-top));
+  padding: calc(12px + var(--safe-top)) calc(18px + var(--safe-right)) 12px calc(18px + var(--safe-left));
   border-bottom: 1px solid rgba(198, 207, 218, 0.8);
   background: rgba(248, 250, 252, 0.9);
   backdrop-filter: blur(18px);
@@ -134,18 +134,42 @@ p {
 
 .topbar-project {
   justify-content: flex-start;
+  min-width: 0;
 }
 
 .topbar-center {
   display: flex;
-  justify-items: center;
-  gap: 5px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  justify-self: center;
+  gap: 9px;
+  min-width: 0;
 }
 
-.topbar-project strong {
-  font-size: 13px;
+.topbar-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text);
+  pointer-events: none;
+}
+
+.topbar-brand img {
+  width: 16px;
+  height: 16px;
+  display: block;
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.32), 0 5px 14px rgba(0, 0, 0, 0.12);
+}
+
+.topbar-brand strong {
+  font-size: 12px;
   white-space: nowrap;
   letter-spacing: 0;
+  line-height: 1;
 }
 
 .topbar-pane-toggle {
@@ -1972,6 +1996,10 @@ mark {
     gap: 8px;
   }
 
+  .topbar-brand strong {
+    display: none;
+  }
+
   .options-menu .menu-popover {
     left: auto;
     right: 0;
@@ -2245,17 +2273,21 @@ textarea:focus-visible,
 }
 
 .global-topbar {
-  min-height: calc(60px + var(--safe-top));
+  min-height: calc(72px + var(--safe-top));
   border-bottom: 1px solid var(--hairline);
   background: color-mix(in srgb, var(--surface) 88%, var(--app));
   backdrop-filter: var(--glass-blur);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.16), 0 14px 34px rgba(0, 0, 0, 0.08);
 }
 
-.topbar-project strong {
+.topbar-brand strong {
   color: var(--text);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 750;
+}
+
+.topbar-brand img {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18), 0 8px 22px rgba(0, 0, 0, 0.2);
 }
 
 .topbar-pane-toggle {
