@@ -129,11 +129,13 @@ p {
 
 .topbar-right {
   justify-content: flex-end;
+  align-self: end;
   min-width: 0;
 }
 
 .topbar-project {
   justify-content: flex-start;
+  align-self: end;
   min-width: 0;
 }
 
@@ -921,6 +923,10 @@ p {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.86), 0 18px 48px rgba(33, 37, 43, 0.06);
 }
 
+.full-script-document {
+  display: block;
+}
+
 .full-script-page {
   width: 100%;
   min-height: auto;
@@ -937,11 +943,27 @@ p {
 }
 
 .full-script-page + .full-script-page {
+  margin-top: 2.4em;
   padding-top: 0;
 }
 
 .full-script-page .read-only-script {
   min-height: 0;
+}
+
+.full-script-document .full-script-scene,
+.full-script-document .read-only-script,
+.full-script-document .screenplay-blocks,
+.full-script-document .screenplay-block {
+  display: block;
+}
+
+.full-script-document .read-only-script {
+  min-height: 0;
+}
+
+.full-script-document .screenplay-block {
+  line-height: var(--draft-line-height);
 }
 
 .review-scene-pane,
@@ -2751,14 +2773,25 @@ textarea:focus-visible,
     gap: 24px;
   }
 
+  .write-workspace {
+    grid-template-columns: minmax(720px, min(72vw, calc(var(--page-view-width) + 80px))) clamp(340px, 17vw, 420px);
+  }
+
   .review-layout-shell,
   .rewrite-layout {
-    grid-template-columns: 280px minmax(900px, 1fr) 300px;
+    grid-template-columns: clamp(320px, 16vw, 380px) minmax(720px, 1fr) clamp(340px, 17vw, 420px);
+  }
+
+  .scene-drawer-list .scene-list-heading {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
   }
 
   .review-layout-shell.scenes-collapsed,
   .rewrite-layout.queue-collapsed {
-    grid-template-columns: minmax(980px, 1fr) 300px;
+    grid-template-columns: minmax(900px, 1fr) clamp(340px, 17vw, 420px);
   }
 
   .review-stage {
@@ -3154,6 +3187,243 @@ mark {
 .saved-dot {
   background: var(--green);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 14%, transparent);
+}
+
+.mode-workspace > .mode-tools {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  align-content: start;
+  grid-auto-rows: max-content;
+}
+
+.write-workspace .document-stage {
+  display: grid;
+  justify-content: center;
+  align-items: stretch;
+  grid-template-columns: minmax(min(100%, 560px), min(100%, var(--page-view-width)));
+  min-height: 0;
+}
+
+.write-workspace .write-page {
+  justify-self: stretch;
+  width: min(100%, var(--page-view-width));
+  max-width: var(--page-view-width);
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.mode-tools,
+.review-scene-pane,
+.review-notes-pane,
+.rewrite-queue {
+  font-size: var(--ui-font-size, 15px);
+}
+
+.mode-tools-header span,
+.tool-section h3,
+.review-scene-pane header strong,
+.review-notes-pane header strong,
+.rewrite-queue header strong {
+  font-size: var(--ui-label-font-size, 12px);
+}
+
+.mode-tools-header strong,
+.tool-summary strong {
+  font-size: var(--ui-heading-font-size, 17px);
+}
+
+.tool-section label,
+.tool-hint,
+.tool-summary,
+.tools-stats,
+.scene-drawer-list button small,
+.rewrite-queue span,
+.rewrite-queue small,
+.note-drawer-card span,
+.subtle-empty {
+  font-size: var(--ui-small-font-size, 12.5px);
+}
+
+.tool-section select,
+.tool-section button,
+.tool-section input,
+.tool-section .segmented,
+.scene-pane-actions button,
+.review-scene-pane button,
+.rewrite-queue button,
+.scene-drawer-list button {
+  min-height: var(--ui-control-height, 36px);
+  font-size: var(--ui-control-font-size, 14.5px);
+}
+
+.scene-list-title {
+  font-size: var(--ui-control-font-size, 14.5px);
+}
+
+@media (max-width: 1499px) {
+  .scene-drawer-list .scene-list-title {
+    font-size: var(--ui-small-font-size, 12.5px);
+    line-height: 1.25;
+  }
+}
+
+.icon-button-row button {
+  flex-basis: calc(var(--ui-control-height, 36px) + 6px);
+  width: calc(var(--ui-control-height, 36px) + 6px);
+  min-height: calc(var(--ui-control-height, 36px) + 6px);
+  font-size: calc(var(--ui-control-font-size, 14.5px) + 6px);
+}
+
+.tools-stats {
+  margin-top: 12px;
+}
+
+.mode-tools .tool-section:has(.icon-button-row) {
+  padding-bottom: 0;
+}
+
+.options-popover .menu-select-row {
+  grid-template-columns: minmax(0, 0.9fr) minmax(156px, 55%);
+}
+
+.options-popover .menu-select-row select {
+  min-width: 156px;
+}
+
+.menu-project-card strong {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.24;
+}
+
+.tool-list-section {
+  display: grid;
+  gap: 10px;
+}
+
+.tool-list-section .notes-drawer-list {
+  max-height: none;
+  overflow: visible;
+  padding-right: 2px;
+}
+
+.tool-list-section .note-drawer-card {
+  min-height: auto;
+}
+
+.single-rewrite-main > .rewrite-card.has-context {
+  overflow: auto;
+}
+
+.single-rewrite-main > .rewrite-card.has-context .context-scene-block {
+  flex: 0 0 auto;
+  max-height: clamp(132px, 18dvh, 260px);
+  overflow: auto;
+}
+
+.single-rewrite-main > .rewrite-card.has-context .rewrite-source {
+  flex: 0 1 clamp(170px, 24%, 300px);
+}
+
+.single-rewrite-main > .rewrite-card.has-context .rewrite-visual-editor {
+  flex: 1 0 min(480px, 45dvh);
+  min-height: min(420px, 42dvh);
+}
+
+@media (min-width: 1500px) {
+  .rewrite-layout > .rewrite-main {
+    width: min(100%, var(--page-view-width));
+    justify-self: center;
+  }
+}
+
+.review-stage .full-script-page {
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+}
+
+.review-stage .full-script-page .read-only-script {
+  min-height: 0;
+}
+
+.scene-drawer-list button {
+  gap: 3px 8px;
+  padding: 10px;
+}
+
+.scene-drawer-list .scene-list-title,
+.rewrite-queue .scene-list-title {
+  font-size: var(--ui-small-font-size, 12.5px);
+  line-height: 1.25;
+}
+
+.scene-drawer-list .scene-list-heading,
+.rewrite-queue .scene-list-heading {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 1500px) {
+  .scene-drawer-list .scene-list-heading,
+  .rewrite-queue .scene-list-heading {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 1100px) {
+  .review-scene-pane {
+    display: grid;
+    grid-column: 1 / -1;
+    position: static;
+    top: auto;
+    max-height: 220px;
+    min-height: 0;
+    order: 0;
+  }
+
+  .review-layout-shell:not(.scenes-collapsed) .review-stage,
+  .review-layout-shell:not(.scenes-collapsed) .mode-tools {
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 1499px) {
+  .scene-drawer-list button,
+  .rewrite-queue button {
+    min-height: auto;
+    padding: 10px;
+  }
+
+  .scene-drawer-list .scene-list-title,
+  .rewrite-queue .scene-list-title {
+    font-size: var(--ui-small-font-size, 12.5px);
+    line-height: 1.25;
+  }
+
+  .scene-drawer-list button small,
+  .rewrite-queue span,
+  .rewrite-queue small {
+    font-size: var(--ui-small-font-size, 12.5px);
+    line-height: 1.35;
+  }
+}
+
+@media (max-width: 900px) {
+  .review-scene-pane {
+    display: grid;
+    grid-column: 1 / -1;
+    position: static;
+    max-height: 220px;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {

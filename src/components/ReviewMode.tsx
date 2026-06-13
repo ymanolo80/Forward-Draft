@@ -133,7 +133,6 @@ export function ReviewMode({
   const [compare, setCompare] = useState(false);
   const [compareVersionId, setCompareVersionId] = useState("");
   const [scenePaneOpen, setScenePaneOpen] = useState(true);
-  const [showScenes, setShowScenes] = useState(false);
   const [showNotes, setShowNotes] = useState(true);
   const [reordering, setReordering] = useState(false);
   const [sceneListFilter, setSceneListFilter] = useState<SceneListFilter>("all");
@@ -150,10 +149,6 @@ export function ReviewMode({
 
   useEffect(() => {
     const onToggleSceneList = () => {
-      if (window.matchMedia("(max-width: 900px)").matches) {
-        setShowScenes(true);
-        return;
-      }
       setScenePaneOpen((open) => !open);
     };
     window.addEventListener(SCENE_LIST_TOGGLE_EVENT, onToggleSceneList);
@@ -368,7 +363,6 @@ export function ReviewMode({
 
   const openScene = (sceneId: string) => {
     setSelectedSceneId(sceneId);
-    setShowScenes(false);
     setSelection(undefined);
     setActiveNoteId(undefined);
     setNoteAnchor(undefined);
@@ -611,7 +605,7 @@ export function ReviewMode({
                 </article>
               </>
             ) : (
-              <div className="full-script-stack">
+              <div className="full-script-stack full-script-document">
                 {project.scenes
                   .slice()
                   .sort((a, b) => a.order - b.order)
@@ -622,7 +616,7 @@ export function ReviewMode({
                     const itemHighlights = sceneHighlights(item, version);
                     return (
                       <article
-                        className="script-page full-script-page"
+                        className="script-page full-script-page full-script-scene"
                         key={item.sceneId}
                         ref={(node) => {
                           sceneRefs.current[item.sceneId] = node;
@@ -732,9 +726,7 @@ export function ReviewMode({
                   ))}
                   {notes.length === 0 && <p className="subtle-empty">No notes on this scene.</p>}
                 </div>
-              ) : (
-                <p className="subtle-empty">Notes hidden.</p>
-              )}
+              ) : null}
             </section>
 
             <ToolFontControls
@@ -797,38 +789,6 @@ export function ReviewMode({
               <div className="note-actions">
                 <button onClick={() => deleteNote(activeNote.noteId)}>Delete</button>
               </div>
-            </div>
-          )}
-
-          {showScenes && (
-            <div className="drawer-scrim" onClick={() => setShowScenes(false)}>
-              <aside className="drawer left-drawer" onClick={(event) => event.stopPropagation()}>
-                <header>
-                  <strong>{sceneLabelPlural}</strong>
-                  <div className="scene-pane-actions">
-                    <button
-                      className={reordering ? "active" : ""}
-                      disabled={sceneListFilter !== "all"}
-                      onClick={() => setReordering((value) => !value)}
-                    >
-                      {reordering ? "Done" : "Reorder"}
-                    </button>
-                    <button
-                      className={sceneListFilter === "edited" ? "active" : ""}
-                      onClick={() => {
-                        setReordering(false);
-                        setSceneListFilter((value) => (value === "all" ? "edited" : "all"));
-                      }}
-                    >
-                      {sceneListFilter === "all" ? "Edited" : "All"}
-                    </button>
-                    <button onClick={() => setShowScenes(false)}>Close</button>
-                  </div>
-                </header>
-                <div className={`scene-drawer-list ${reordering ? "is-reordering" : ""}`}>
-                  {visibleSceneList.length > 0 ? visibleSceneList.map(renderSceneButton) : <p className="subtle-empty">No edited {sceneLabelPlural.toLowerCase()} yet.</p>}
-                </div>
-              </aside>
             </div>
           )}
         </div>

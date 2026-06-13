@@ -378,10 +378,11 @@ export function RewriteMode({
       project.writingMode === "script" && scene.sceneId === selected?.scene.sceneId
         ? screenplayElementSuggestions(rewriteElement, activeLine, project, data.versions)
         : [];
+    const hasContext = showContext && !compact && Boolean(previousVersion || nextVersion);
 
     return (
       <article
-        className={`rewrite-card ${showReviewedScene ? "has-reviewed-source" : ""} ${scene.sceneId === selected?.scene.sceneId ? "active-rewrite-card" : ""}`}
+        className={`rewrite-card ${showReviewedScene ? "has-reviewed-source" : ""} ${hasContext ? "has-context" : ""} ${scene.sceneId === selected?.scene.sceneId ? "active-rewrite-card" : ""}`}
         key={scene.sceneId}
         onClick={() => setSelectedSceneId(scene.sceneId)}
         onFocus={() => setSelectedSceneId(scene.sceneId)}

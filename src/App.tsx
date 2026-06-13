@@ -317,6 +317,7 @@ export function App() {
   const text = projectText(activeProject, data);
   const words = wordCount(text);
   const pages = projectPageCount(activeProject, text);
+  const interfaceScale = Math.min(1.32, 1 + Math.max(0, documentZoom - 1) * 0.42);
   const appStyle = {
     "--draft-font-family": fontFamilyMap[fontSettings.family],
     "--draft-font-size": `${fontSettings.size}px`,
@@ -326,6 +327,12 @@ export function App() {
     "--draft-text-decoration": "none",
     "--page-zoom": String(documentZoom),
     "--draft-view-font-size": `${fontSettings.size * documentZoom}px`,
+    "--ui-font-size": `${15 * interfaceScale}px`,
+    "--ui-small-font-size": `${12.5 * interfaceScale}px`,
+    "--ui-label-font-size": `${12 * interfaceScale}px`,
+    "--ui-heading-font-size": `${17 * interfaceScale}px`,
+    "--ui-control-font-size": `${14.5 * interfaceScale}px`,
+    "--ui-control-height": `${36 * interfaceScale}px`,
   } as CSSProperties;
   const hasSceneListToggle = Boolean(activeProject && (mode === "review" || mode === "rewrite"));
   const sceneListLabel = activeProject?.writingMode === "freewrite" ? "Chapters" : "Scenes";
