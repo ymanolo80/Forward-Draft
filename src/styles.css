@@ -1527,7 +1527,7 @@ mark {
   min-width: 0;
   touch-action: pan-y;
 }
-.scene-delete-action {
+.scene-list-row.swipeable .scene-delete-action {
   flex: 0 0 88px;
   display: flex;
   align-items: center;
