@@ -3927,6 +3927,7 @@ mark {
 }
 .ob-cloud svg {
   display: block;
+  overflow: visible;
 }
 .ob-check {
   stroke-dasharray: 32;

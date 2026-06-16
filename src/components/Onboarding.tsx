@@ -155,7 +155,7 @@ function DoneIllustration() {
   return (
     <div className="ob-illus ob-done" aria-hidden="true">
       <div className="ob-cloud">
-        <svg viewBox="0 0 64 44" width="84" height="58" role="img">
+        <svg viewBox="-4 -6 72 56" width="92" height="72" role="img">
           <path
             d="M20 40h26a12 12 0 0 0 2-23.8A16 16 0 0 0 16 14 11 11 0 0 0 20 40Z"
             fill="none"
