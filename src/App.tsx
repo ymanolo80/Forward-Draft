@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ReviewMode } from "./components/ReviewMode";
 import { RewriteMode } from "./components/RewriteMode";
 import { WriteMode } from "./components/WriteMode";
+import { useDialog } from "./components/DialogProvider";
 import { autosaveProjectFile, createProjectFile, exportChangesPdf, exportFountainFile, exportFullPdf, saveProjectFile, exportText } from "./lib/exports";
 import { isNativeFileServiceAvailable, openNativeTextFile, readNativeTextFileReference, readTextFile } from "./lib/fileService";
 import { createId, nowIso } from "./lib/ids";
@@ -102,6 +103,7 @@ function projectFileContentsMatch(project: Project, data: AppData, fileText: str
 }
 
 export function App() {
+  const dialog = useDialog();
   const [data, setDataState] = useState<AppData>(emptyData);
   const [mode, setMode] = useState<AppMode>("write");
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -245,9 +247,9 @@ export function App() {
     setMode("write");
     setOptionsOpen(false);
     if (showCopyAlert && result.importedAsCopy) {
-      alert(`Opened "${result.originalTitle}" as "${result.title}" because that project already exists here.`);
+      dialog.alert(`Opened "${result.originalTitle}" as "${result.title}" because that project already exists here.`);
     }
-  }, [data, setData]);
+  }, [data, setData, dialog]);
 
   const undoLast = useCallback(() => {
     const result = undoHistory(history, data.activeProjectId, data);
@@ -437,15 +439,16 @@ export function App() {
     if (fileReference) {
       await autosaveProjectFile(savedProject, nextData);
     } else {
-      alert("Project created locally, but Forward Draft could not keep a live file location for autosave on this device.");
+      dialog.alert("Project created locally, but Forward Draft could not keep a live file location for autosave on this device.");
     }
     setData(nextData, { dirty: false });
     setMode("write");
   };
 
-  const rename = () => {
+  const rename = async () => {
     if (!activeProject) return;
-    const title = prompt("Project title", activeProject.title)?.trim();
+    const response = await dialog.prompt("Project title", activeProject.title);
+    const title = response?.trim();
     if (!title) return;
     setData({
       ...data,
@@ -546,8 +549,10 @@ export function App() {
     });
   };
 
-  const deleteActive = () => {
-    if (!activeProject || !confirm(`Delete "${activeProject.title}"?`)) return;
+  const deleteActive = async () => {
+    if (!activeProject) return;
+    const confirmed = await dialog.confirm(`Delete "${activeProject.title}"?`, { confirmLabel: "Delete", danger: true });
+    if (!confirmed) return;
     const deletedProjectId = activeProject.projectId;
     const sceneIds = new Set(activeProject.scenes.map((scene) => scene.sceneId));
     const projects = data.projects.filter((project) => project.projectId !== activeProject.projectId);
@@ -569,7 +574,7 @@ export function App() {
     const outcome = await saveProjectFile(activeProject, data);
     if (outcome.status === "cancelled") return;
     if (outcome.status !== "saved") {
-      alert("Forward Draft could not save this project file.");
+      dialog.alert("Forward Draft could not save this project file.");
       return;
     }
     clearProjectDirty(activeProject.projectId);
@@ -581,7 +586,7 @@ export function App() {
     try {
       applyProjectSource(source);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "This project file could not be opened.");
+      dialog.alert(error instanceof Error ? error.message : "This project file could not be opened.");
     }
   };
 
@@ -598,7 +603,7 @@ export function App() {
       setMode("review");
       setOptionsOpen(false);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "This Fountain file could not be imported.");
+      dialog.alert(error instanceof Error ? error.message : "This Fountain file could not be imported.");
     }
   };
 
@@ -615,7 +620,7 @@ export function App() {
       setMode("review");
       setOptionsOpen(false);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "This TXT file could not be imported.");
+      dialog.alert(error instanceof Error ? error.message : "This TXT file could not be imported.");
     }
   };
 
@@ -632,7 +637,7 @@ export function App() {
       setMode("review");
       setOptionsOpen(false);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "This Final Draft file could not be imported.");
+      dialog.alert(error instanceof Error ? error.message : "This Final Draft file could not be imported.");
     }
   };
 
@@ -951,7 +956,7 @@ export function App() {
                     applyProjectSource(externalProjectUpdate, false);
                     setExternalProjectUpdate(undefined);
                   } catch (error) {
-                    alert(error instanceof Error ? error.message : "This project file could not be reloaded.");
+                    dialog.alert(error instanceof Error ? error.message : "This project file could not be reloaded.");
                   }
                 }}
               >
