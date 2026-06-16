@@ -93,8 +93,11 @@ function RewriteIllustration() {
           Your rewrite <span className="ob-version">v3</span>
         </span>
         <div className="ob-line scene-heading">INT. KITCHEN — DAY</div>
-        <div className="ob-line">
-          She reads the letter — a name she hasn't said in years.<span className="ob-caret" />
+        <div className="ob-rw-line">
+          <span className="ob-rw-old">She reads the letter again.</span>
+          <span className="ob-rw-new">
+            She reads it — then burns it.<span className="ob-caret" />
+          </span>
         </div>
       </div>
     </div>

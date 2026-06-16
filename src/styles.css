@@ -3482,13 +3482,14 @@ mark {
   cursor: pointer;
 }
 .onboarding-stage {
-  height: 200px;
+  min-height: 200px;
   border-radius: 14px;
   border: 1px solid var(--soft-line);
   background: var(--page);
   display: grid;
   place-items: center;
   overflow: hidden;
+  padding: 8px 0;
   animation: soft-arrive 0.32s ease;
 }
 .onboarding-copy {
@@ -3534,8 +3535,7 @@ mark {
 
 .ob-illus {
   width: 100%;
-  height: 100%;
-  padding: 16px;
+  padding: 12px 16px;
   display: grid;
   gap: 10px;
   align-content: center;
@@ -3795,6 +3795,68 @@ mark {
   gap: 5px;
   box-shadow: var(--shadow);
 }
+/* the rewrite line: the old sentence is struck through, then the new one types in */
+.ob-rw-line {
+  position: relative;
+  min-height: 1.5em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.ob-rw-old {
+  position: absolute;
+  left: 0;
+  top: 0;
+  animation: ob-rw-old 7s infinite;
+}
+.ob-rw-old::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 1.5px;
+  width: 0;
+  background: currentColor;
+  animation: ob-rw-strike 7s infinite;
+}
+@keyframes ob-rw-strike {
+  0%,
+  10% {
+    width: 0;
+  }
+  26%,
+  100% {
+    width: 100%;
+  }
+}
+@keyframes ob-rw-old {
+  0%,
+  28% {
+    opacity: 0.9;
+  }
+  34%,
+  100% {
+    opacity: 0;
+  }
+}
+.ob-rw-new {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  width: 0;
+  animation: ob-rw-type 7s steps(30) infinite;
+}
+@keyframes ob-rw-type {
+  0%,
+  36% {
+    width: 0;
+  }
+  72%,
+  100% {
+    width: 30ch;
+  }
+}
 
 /* compare: two script pages side by side, as in Review */
 .ob-compare {
@@ -3880,3 +3942,54 @@ mark {
 /* Onboarding animations intentionally play regardless of prefers-reduced-motion:
    they are gentle opacity fades that illustrate the features, and a blanket
    disable left the walkthrough static on Macs with Reduce Motion enabled. */
+
+/* On Mac (mouse/trackpad → pointer: fine) the iPad-sized text reads too small,
+   so scale the walkthrough up there; touch devices (iPad/iPhone) are unchanged. */
+@media (pointer: fine) {
+  .onboarding-card {
+    width: min(640px, 100%);
+    padding: 26px;
+    gap: 20px;
+  }
+  .onboarding-stage {
+    min-height: 240px;
+  }
+  .onboarding-skip {
+    font-size: 14px;
+  }
+  .onboarding-copy strong {
+    font-size: 21px;
+  }
+  .onboarding-copy p {
+    font-size: 15.5px;
+    line-height: 1.55;
+  }
+  .onboarding-nav button {
+    min-height: 42px;
+    font-size: 15px;
+  }
+  .ob-page,
+  .ob-cmp-page {
+    font-size: 15px;
+  }
+  .ob-brand strong {
+    font-size: 18px;
+  }
+  .ob-stage {
+    font-size: 15px;
+  }
+  .ob-mini-label,
+  .ob-version {
+    font-size: 11.5px;
+  }
+  .ob-control,
+  .ob-note,
+  .ob-note-inline,
+  .ob-status,
+  .ob-neighbor,
+  .ob-toggle,
+  .ob-menu-item,
+  .ob-done p {
+    font-size: 13.5px;
+  }
+}
