@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type PointerEvent } from "react";
 import { ToolFontControls } from "./ToolFontControls";
 import { InlineFountainText } from "./InlineFountainText";
+import { useDialog } from "./DialogProvider";
 import type { AppData, FontSettings, Highlight, Project, ReviewNote, Scene, SceneVersion } from "../types";
 import { createId, nowIso } from "../lib/ids";
 import { pageCountLabel, writingModePageCount } from "../lib/pageMetrics";
@@ -9,6 +10,7 @@ import { elementClass } from "../lib/fountain";
 import { parseScreenplayText } from "../lib/screenplay";
 
 const SCENE_LIST_TOGGLE_EVENT = "forwarddraft:toggle-scene-list";
+const SCENE_DELETE_WIDTH = 88;
 
 interface ReviewModeProps {
   data: AppData;
@@ -128,6 +130,7 @@ export function ReviewMode({
   fontSettings,
   setFontSettings,
 }: ReviewModeProps) {
+  const dialog = useDialog();
   const [selectedSceneId, setSelectedSceneId] = useState(project.scenes[0]?.sceneId);
   const [reviewView, setReviewView] = useState<ReviewView>("scene");
   const [compare, setCompare] = useState(false);
@@ -140,6 +143,14 @@ export function ReviewMode({
   const [pointerDragSceneId, setPointerDragSceneId] = useState<string | undefined>();
   const [pointerDragStartY, setPointerDragStartY] = useState(0);
   const [pointerDragDeltaY, setPointerDragDeltaY] = useState(0);
+  const [swipeId, setSwipeId] = useState<string | undefined>();
+  const [swipeDX, setSwipeDX] = useState(0);
+  const swipeStartXRef = useRef(0);
+  const swipeStartYRef = useRef(0);
+  const swipeBaseRef = useRef(0);
+  const swipeDecidedRef = useRef<"none" | "h" | "v">("none");
+  const swipeActiveRef = useRef(false);
+  const swipeSuppressClickRef = useRef(false);
   const [selection, setSelection] = useState<SelectionInfo | undefined>();
   const [composerOpen, setComposerOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
@@ -420,13 +431,111 @@ export function ReviewMode({
   const sceneLabel = project.writingMode === "freewrite" ? "Chapter" : "Scene";
   const sceneLabelPlural = project.writingMode === "freewrite" ? "Chapters" : "Scenes";
 
+  const deleteScene = (sceneId: string) => {
+    const updatedAt = nowIso();
+    const remaining = sortedScenes.filter((item) => item.sceneId !== sceneId);
+    const renumbered = remaining.map((item, index) => ({ ...item, order: index + 1, updatedAt }));
+    if (selectedSceneId === sceneId) {
+      const deletedIndex = sortedScenes.findIndex((item) => item.sceneId === sceneId);
+      setSelectedSceneId(remaining[Math.min(deletedIndex, remaining.length - 1)]?.sceneId);
+    }
+    // Cascade like a project delete: drop the scene's versions, notes,
+    // highlights and tasks so nothing is orphaned.
+    setData({
+      ...data,
+      projects: data.projects.map((candidate) =>
+        candidate.projectId === project.projectId ? { ...candidate, scenes: renumbered, updatedAt } : candidate,
+      ),
+      versions: data.versions.filter((version) => version.sceneId !== sceneId),
+      notes: data.notes.filter((note) => note.sceneId !== sceneId),
+      highlights: data.highlights.filter((highlight) => highlight.sceneId !== sceneId),
+      tasks: data.tasks.filter((task) => task.sceneId !== sceneId),
+    });
+  };
+
+  const resetSwipe = () => {
+    swipeActiveRef.current = false;
+    swipeDecidedRef.current = "none";
+    setSwipeId(undefined);
+    setSwipeDX(0);
+  };
+
+  const confirmDeleteScene = async (item: Scene) => {
+    const label = sceneLabel.toLowerCase();
+    const confirmed = await dialog.confirm(
+      `Delete ${label} ${item.order} — "${item.heading}"? This also removes its versions, notes and tasks.`,
+      { confirmLabel: "Delete", danger: true },
+    );
+    resetSwipe();
+    if (confirmed) deleteScene(item.sceneId);
+  };
+
+  const swipePointerDown = (item: Scene, event: PointerEvent<HTMLButtonElement>) => {
+    swipeStartXRef.current = event.clientX;
+    swipeStartYRef.current = event.clientY;
+    swipeDecidedRef.current = "none";
+    swipeBaseRef.current = swipeId === item.sceneId ? swipeDX : 0;
+    if (swipeId && swipeId !== item.sceneId) {
+      setSwipeId(undefined);
+      setSwipeDX(0);
+    }
+  };
+
+  const swipePointerMove = (item: Scene, event: PointerEvent<HTMLButtonElement>) => {
+    const dx = event.clientX - swipeStartXRef.current;
+    const dy = event.clientY - swipeStartYRef.current;
+    if (swipeDecidedRef.current === "none") {
+      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
+        swipeDecidedRef.current = "v";
+        return;
+      }
+      if (Math.abs(dx) > 8) {
+        swipeDecidedRef.current = "h";
+        swipeActiveRef.current = true;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        setSwipeId(item.sceneId);
+      } else {
+        return;
+      }
+    }
+    if (swipeDecidedRef.current !== "h") return;
+    event.preventDefault();
+    setSwipeDX(Math.max(-SCENE_DELETE_WIDTH, Math.min(0, swipeBaseRef.current + dx)));
+  };
+
+  const swipePointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+    if (swipeDecidedRef.current === "h") {
+      swipeSuppressClickRef.current = true;
+      swipeActiveRef.current = false;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      const open = swipeDX <= -SCENE_DELETE_WIDTH / 2;
+      setSwipeDX(open ? -SCENE_DELETE_WIDTH : 0);
+      if (!open) setSwipeId(undefined);
+    }
+    swipeDecidedRef.current = "none";
+  };
+
   const renderSceneButton = (item: Scene, index: number) => {
     const version = data.versions.find((candidate) => candidate.versionId === item.currentVersionId);
     const noteCount = data.notes.filter((note) => note.sceneId === item.sceneId && !note.resolved).length;
+    const revealed = !reordering && swipeId === item.sceneId && swipeDX !== 0;
     return (
       <Fragment key={item.sceneId}>
         {reordering && dropIndex === index && <div className="drop-line" />}
-        <div className={`scene-list-row ${reordering ? "is-reordering" : ""}`}>
+        <div className={`scene-list-row ${reordering ? "is-reordering" : "swipeable"} ${revealed ? "is-revealed" : ""}`}>
+          {!reordering && (
+            <button
+              type="button"
+              className="scene-delete-action"
+              aria-label={`Delete ${sceneLabel.toLowerCase()} ${item.order}`}
+              tabIndex={revealed ? 0 : -1}
+              onClick={() => confirmDeleteScene(item)}
+            >
+              Delete
+            </button>
+          )}
           <button
             className={`${scene && item.sceneId === scene.sceneId ? "selected" : ""} ${reordering ? "reorderable" : ""} ${
               pointerDragSceneId === item.sceneId ? "is-dragging" : ""
@@ -434,36 +543,66 @@ export function ReviewMode({
             data-scene-list-index={index}
             data-scene-list-id={item.sceneId}
             onClick={() => {
-              if (!reordering) openScene(item.sceneId);
+              if (reordering) return;
+              if (swipeSuppressClickRef.current) {
+                swipeSuppressClickRef.current = false;
+                return;
+              }
+              if (revealed) {
+                resetSwipe();
+                return;
+              }
+              openScene(item.sceneId);
+            }}
+            onContextMenu={(event) => {
+              if (reordering) return;
+              event.preventDefault();
+              void confirmDeleteScene(item);
             }}
             onPointerDown={(event) => {
-              if (!reordering) return;
-              event.preventDefault();
-              event.currentTarget.setPointerCapture(event.pointerId);
-              setPointerDragSceneId(item.sceneId);
-              setPointerDragStartY(event.clientY);
-              setPointerDragDeltaY(0);
-              setDropIndex(index);
+              if (reordering) {
+                event.preventDefault();
+                event.currentTarget.setPointerCapture(event.pointerId);
+                setPointerDragSceneId(item.sceneId);
+                setPointerDragStartY(event.clientY);
+                setPointerDragDeltaY(0);
+                setDropIndex(index);
+              } else {
+                swipePointerDown(item, event);
+              }
             }}
             onPointerMove={(event) => {
-              if (!reordering || !pointerDragSceneId) return;
-              setPointerDragDeltaY(event.clientY - pointerDragStartY);
-              const nextDropIndex = pointerDropIndex(event);
-              if (nextDropIndex !== undefined) setDropIndex(nextDropIndex);
-            }}
-            onPointerUp={finishPointerReorder}
-            onPointerCancel={(event) => {
-              if (pointerDragSceneId && event.currentTarget.hasPointerCapture(event.pointerId)) {
-                event.currentTarget.releasePointerCapture(event.pointerId);
+              if (reordering) {
+                if (!pointerDragSceneId) return;
+                setPointerDragDeltaY(event.clientY - pointerDragStartY);
+                const nextDropIndex = pointerDropIndex(event);
+                if (nextDropIndex !== undefined) setDropIndex(nextDropIndex);
+              } else {
+                swipePointerMove(item, event);
               }
-              setPointerDragSceneId(undefined);
-              setPointerDragDeltaY(0);
-              setDropIndex(undefined);
+            }}
+            onPointerUp={(event) => {
+              if (reordering) finishPointerReorder(event);
+              else swipePointerUp(event);
+            }}
+            onPointerCancel={(event) => {
+              if (reordering) {
+                if (pointerDragSceneId && event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+                setPointerDragSceneId(undefined);
+                setPointerDragDeltaY(0);
+                setDropIndex(undefined);
+              } else {
+                resetSwipe();
+              }
             }}
             style={
-              pointerDragSceneId === item.sceneId
+              reordering && pointerDragSceneId === item.sceneId
                 ? { transform: `translateY(${pointerDragDeltaY}px)` }
-                : undefined
+                : !reordering && swipeId === item.sceneId
+                  ? { transform: `translateX(${swipeDX}px)`, transition: swipeActiveRef.current ? "none" : undefined }
+                  : undefined
             }
           >
             {reordering && <span className="grab-handle" aria-hidden="true">::</span>}

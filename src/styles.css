@@ -1513,6 +1513,40 @@ mark {
   width: 100%;
 }
 
+.scene-list-row.swipeable {
+  position: relative;
+  overflow: hidden;
+}
+.scene-list-row.swipeable > button:not(.scene-delete-action) {
+  position: relative;
+  z-index: 1;
+  touch-action: pan-y;
+  transition: transform 0.18s ease;
+}
+.scene-delete-action {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0 10px 10px 0;
+  background: #d83a3a;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  z-index: 0;
+}
+.scene-list-row.is-revealed .scene-delete-action {
+  opacity: 1;
+}
+
 .scene-drawer-list button.reorderable {
   grid-template-columns: 24px 1fr;
   cursor: grab;
