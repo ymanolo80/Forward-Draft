@@ -18,12 +18,12 @@
   "dependencies": {
     "@capacitor/core": "^8.4.0",
     "@capacitor/ios": "^8.4.0",
-    "@vitejs/plugin-react": "latest",
-    "jspdf": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "typescript": "latest",
-    "vite": "latest"
+    "@vitejs/plugin-react": "^6.0.1",
+    "jspdf": "^4.2.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.0",
