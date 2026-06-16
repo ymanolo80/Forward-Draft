@@ -3737,9 +3737,6 @@ mark {
   gap: 5px;
 }
 .ob-version {
-  position: absolute;
-  top: 8px;
-  right: 10px;
   font-family: system-ui, sans-serif;
   font-size: 10px;
   color: var(--muted);
@@ -3756,6 +3753,67 @@ mark {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 4px 12px;
+}
+
+/* rewrite interface: reviewed scene + notes on top, rewrite panel below */
+.ob-rewrite2 {
+  gap: 8px;
+}
+.ob-mini-label {
+  font-family: system-ui, sans-serif;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ob-reviewed {
+  border: 1px solid var(--soft-line);
+  border-radius: 10px;
+  padding: 9px 11px;
+  background: var(--page);
+  display: grid;
+  gap: 5px;
+}
+.ob-note-inline {
+  justify-self: start;
+  background: var(--note);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 4px 8px;
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+}
+.ob-rewrite-panel {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 11px;
+  background: var(--page);
+  display: grid;
+  gap: 5px;
+  box-shadow: var(--shadow);
+}
+
+/* compare: two script pages side by side, as in Review */
+.ob-compare {
+  justify-items: center;
+}
+.ob-compare-pages {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+.ob-cmp-page {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: var(--page);
+  display: grid;
+  gap: 5px;
+  font-size: 11.5px;
 }
 
 .ob-export {
@@ -3802,6 +3860,12 @@ mark {
   color: var(--muted);
   font-size: 13px;
 }
+.ob-cloud {
+  line-height: 0;
+}
+.ob-cloud svg {
+  display: block;
+}
 .ob-check {
   stroke-dasharray: 32;
   stroke-dashoffset: 32;
@@ -3813,9 +3877,6 @@ mark {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .ob-illus *,
-  .onboarding-stage {
-    animation: none !important;
-  }
-}
+/* Onboarding animations intentionally play regardless of prefers-reduced-motion:
+   they are gentle opacity fades that illustrate the features, and a blanket
+   disable left the walkthrough static on Macs with Reduce Motion enabled. */

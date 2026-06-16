@@ -79,15 +79,57 @@ function ReviewIllustration() {
 
 function RewriteIllustration() {
   return (
+    <div className="ob-illus ob-rewrite2" aria-hidden="true">
+      <div className="ob-reviewed">
+        <span className="ob-mini-label">Reviewed scene</span>
+        <div className="ob-line scene-heading">INT. KITCHEN — DAY</div>
+        <div className="ob-line">
+          She reads <span className="ob-highlight">the letter</span> again.
+        </div>
+        <span className="ob-note-inline">Clarify what it says</span>
+      </div>
+      <div className="ob-rewrite-panel">
+        <span className="ob-mini-label">
+          Your rewrite <span className="ob-version">v3</span>
+        </span>
+        <div className="ob-line scene-heading">INT. KITCHEN — DAY</div>
+        <div className="ob-line">
+          She reads the letter — a name she hasn't said in years.<span className="ob-caret" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PrevNextIllustration() {
+  return (
     <div className="ob-illus ob-rewrite" aria-hidden="true">
-      <div className="ob-neighbor ob-prev">▲ INT. HALLWAY — earlier</div>
+      <div className="ob-neighbor ob-prev">▲ Previous scene · INT. HALLWAY</div>
       <div className="ob-scene-active">
         <div className="ob-line scene-heading">INT. KITCHEN — DAY</div>
         <div className="ob-line">She folds the letter, slowly.</div>
-        <span className="ob-version">v3</span>
       </div>
-      <div className="ob-neighbor ob-next">▼ EXT. STREET — next</div>
-      <div className="ob-toggle">Show neighbouring scenes</div>
+      <div className="ob-neighbor ob-next">▼ Next scene · EXT. STREET</div>
+      <div className="ob-toggle">☑ Previous/next scene</div>
+    </div>
+  );
+}
+
+function CompareIllustration() {
+  return (
+    <div className="ob-illus ob-compare" aria-hidden="true">
+      <div className="ob-compare-pages">
+        <div className="ob-cmp-page">
+          <span className="ob-mini-label">Compare · V2</span>
+          <div className="ob-line scene-heading">INT. KITCHEN — DAY</div>
+          <div className="ob-line">She reads the letter again.</div>
+        </div>
+        <div className="ob-cmp-page">
+          <span className="ob-mini-label">Current · V3</span>
+          <div className="ob-line scene-heading">INT. KITCHEN — DAY</div>
+          <div className="ob-line">She reads the letter — then burns it.</div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -99,8 +141,8 @@ function ExportIllustration() {
         <div className="ob-menu-item">Fountain</div>
         <div className="ob-menu-item">Final Draft</div>
         <div className="ob-menu-item">PDF — full script</div>
-        <div className="ob-menu-item">Revision PDF — changes marked</div>
-        <div className="ob-menu-item ob-menu-hot">Changes PDF — with notes</div>
+        <div className="ob-menu-item">Revision PDF — full script, marked changes</div>
+        <div className="ob-menu-item ob-menu-hot">Changes PDF — changed scenes only, with notes</div>
       </div>
     </div>
   );
@@ -138,18 +180,28 @@ const slides: Slide[] = [
     illustration: <FadeIllustration />,
   },
   {
-    title: "Review and compare",
-    body: "Give each scene a status, highlight any line and attach a note to it, and compare versions side by side to see exactly what changed between drafts.",
+    title: "Review",
+    body: "Give each scene a status, then highlight any line and attach a note to it — so every change you want is pinned to the exact words.",
     illustration: <ReviewIllustration />,
   },
   {
     title: "Rewrite with everything in view",
-    body: "Work scene by scene with your review notes beside you, and keep a version history of every pass. Show or hide the previous and next scene to stay oriented in the flow of the script.",
+    body: "Your reviewed scene and its notes stay on top and your rewrite panel sits below, so you can work through each note as you write the new version. Every pass is saved to the scene's history.",
     illustration: <RewriteIllustration />,
   },
   {
+    title: "Stay oriented",
+    body: "Toggle Previous/next scene to peek at the scenes on either side without leaving your rewrite — so you always know where you are in the flow of the script.",
+    illustration: <PrevNextIllustration />,
+  },
+  {
+    title: "Compare versions",
+    body: "Back in Review, set an earlier version beside the current one to see exactly what changed between drafts — and promote the older take if you prefer it.",
+    illustration: <CompareIllustration />,
+  },
+  {
     title: "Export however you need",
-    body: "Export to Fountain or Final Draft (FDX), or to PDF — the full script, a revision PDF with changes marked, or a changes-only PDF that includes your notes.",
+    body: "Export to Fountain or Final Draft (FDX), or to PDF — the full script, a revision PDF of the full script with changes marked, or a changes-only PDF of the changed scenes with your notes.",
     illustration: <ExportIllustration />,
   },
   {
