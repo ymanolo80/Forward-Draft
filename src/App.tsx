@@ -25,6 +25,12 @@ import {
   undo as undoHistory,
   type HistoryMap,
 } from "./lib/history";
+import {
+  deleteProjectFromAppStore,
+  loadAppStoreProjectDocuments,
+  persistProject,
+  reconcileWithAppStore,
+} from "./lib/projectStore";
 import type { AppData, AppMode, CoverPage, FadeTiming, FontFamilyChoice, FontSettings, Project, ProjectFileReference, VisibilityRule, WritingMode } from "./types";
 
 type ThemeMode = "system" | "light" | "dark";
@@ -136,9 +142,28 @@ export function App() {
 
   useEffect(() => {
     loadData()
-      .then((stored) => {
-        if (stored.projects.length) setDataState(stored);
-        else setDataState(createProject("Forward Draft Sample"));
+      .then(async (stored) => {
+        // Recover any project that exists in the durable app-owned store but not
+        // in the IndexedDB cache (e.g. after the cache was evicted or cleared).
+        let reconciled = stored;
+        try {
+          reconciled = reconcileWithAppStore(stored, await loadAppStoreProjectDocuments());
+        } catch (error) {
+          console.error("App-store recovery failed", error);
+        }
+        if (reconciled.projects.length) {
+          setDataState(reconciled);
+          if (reconciled !== stored) saveData(reconciled).catch((error) => console.error("Recovery cache write failed", error));
+        } else {
+          setDataState(createProject("Forward Draft Sample"));
+        }
+      })
+      .catch(async (error) => {
+        // IndexedDB itself failed to open: rebuild straight from durable backups.
+        console.error("Local cache load failed", error);
+        const recovered = reconcileWithAppStore(emptyData, await loadAppStoreProjectDocuments().catch(() => []));
+        setDataState(recovered.projects.length ? recovered : createProject("Forward Draft Sample"));
+        if (recovered.projects.length) saveData(recovered).catch(() => undefined);
       })
       .finally(() => setLoaded(true));
   }, []);
@@ -243,7 +268,7 @@ export function App() {
   }, [data, history, markProjectDirty]);
 
   useEffect(() => {
-    if (!loaded || !activeProject?.fileReference) return undefined;
+    if (!loaded || !activeProject) return undefined;
     if (fileReferenceOnlyUpdateRef.current) {
       fileReferenceOnlyUpdateRef.current = false;
       return undefined;
@@ -253,14 +278,14 @@ export function App() {
     clearPendingProjectAutosave();
     projectAutosaveTimerRef.current = window.setTimeout(() => {
       projectAutosaveTimerRef.current = undefined;
-      autosaveProjectFile(activeProject, data)
+      // Writes the durable app-owned copy (always, on native) plus the linked
+      // external file when one exists. Dirty clears only once a durable copy lands.
+      persistProject(activeProject, data)
         .then((outcome) => {
-          if (outcome.status === "saved" && outcome.fileReference) {
-            clearProjectDirty(activeProject.projectId, dirtyVersion);
-            rememberProjectFileReference(activeProject.projectId, outcome.fileReference);
-          }
+          if (outcome.durablySaved) clearProjectDirty(activeProject.projectId, dirtyVersion);
+          if (outcome.fileReference) rememberProjectFileReference(activeProject.projectId, outcome.fileReference);
         })
-        .catch((error) => console.error("Project file autosave failed", error));
+        .catch((error) => console.error("Project autosave failed", error));
     }, 900);
     return clearPendingProjectAutosave;
   }, [activeProject, clearPendingProjectAutosave, clearProjectDirty, data, loaded, rememberProjectFileReference]);
@@ -288,7 +313,7 @@ export function App() {
         fileRefreshCheckingRef.current = false;
       }
     };
-    const timer = window.setInterval(checkForFileRefresh, 6000);
+    const timer = window.setInterval(checkForFileRefresh, 10000);
     void checkForFileRefresh();
     return () => window.clearInterval(timer);
   }, [activeProject, data, externalProjectUpdate, loaded, rememberProjectFileReference]);
@@ -369,6 +394,22 @@ export function App() {
       drafts: [],
       scenes: [],
     };
+
+    // On native the durable copy lives in the app-owned store, so a new project
+    // needs no save-location prompt. On the web (where origin storage is
+    // evictable) offer a file location so the work has a durable home.
+    if (isNativeFileServiceAvailable()) {
+      const nextData = {
+        ...data,
+        projects: [...data.projects, project],
+        activeProjectId: projectId,
+      };
+      await persistProject(project, nextData);
+      setData(nextData, { dirty: false });
+      setMode("write");
+      return;
+    }
+
     const initialData = {
       ...data,
       projects: [...data.projects, project],
@@ -511,6 +552,7 @@ export function App() {
     const sceneIds = new Set(activeProject.scenes.map((scene) => scene.sceneId));
     const projects = data.projects.filter((project) => project.projectId !== activeProject.projectId);
     setHistory((current) => clearProjectHistory(current, deletedProjectId));
+    void deleteProjectFromAppStore(deletedProjectId);
     setData({
       projects,
       versions: data.versions.filter((version) => !sceneIds.has(version.sceneId)),

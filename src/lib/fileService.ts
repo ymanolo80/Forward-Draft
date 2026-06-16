@@ -33,6 +33,10 @@ interface NativeForwardDraftFilePlugin {
   saveTextFile(options: { fileRef: string; base64: string }): Promise<NativeFileResult>;
   openTextFile(options: { extensions: string[] }): Promise<NativeFileResult>;
   getTextFileInfo(options: { fileRef: string }): Promise<NativeFileResult>;
+  writeAppFile(options: { name: string; base64: string }): Promise<NativeFileResult>;
+  readAppFile(options: { name: string }): Promise<NativeFileResult>;
+  listAppFiles(options: { extension: string }): Promise<{ files?: NativeFileResult[] }>;
+  deleteAppFile(options: { name: string }): Promise<NativeFileResult>;
 }
 
 const NativeForwardDraftFiles = registerPlugin<NativeForwardDraftFilePlugin>("ForwardDraftFilePlugin");
@@ -184,6 +188,66 @@ export async function readNativeTextFileReference(reference: ProjectFileReferenc
     if (isCancelled(error)) return null;
     console.error("Native file refresh failed", error);
     return undefined;
+  }
+}
+
+// --- App-owned durable store (native only) -------------------------------
+// Picker-free reads/writes in the app's Documents directory, used as the
+// always-available durable copy of each project (survives IndexedDB eviction).
+
+export interface AppStoredFile {
+  name: string;
+  text: string;
+  modifiedAt?: number;
+}
+
+async function textToBase64(text: string) {
+  return blobToBase64(new Blob([text], { type: "text/plain" }));
+}
+
+export async function writeAppProjectFile(name: string, text: string): Promise<boolean> {
+  if (!isNativeFileServiceAvailable()) return false;
+  try {
+    await NativeForwardDraftFiles.writeAppFile({ name, base64: await textToBase64(text) });
+    return true;
+  } catch (error) {
+    console.error("App-store write failed", error);
+    return false;
+  }
+}
+
+export async function readAppProjectFile(name: string): Promise<string | undefined> {
+  if (!isNativeFileServiceAvailable()) return undefined;
+  try {
+    const result = await NativeForwardDraftFiles.readAppFile({ name });
+    return typeof result.text === "string" ? result.text : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function listAppProjectFiles(extension: string): Promise<AppStoredFile[]> {
+  if (!isNativeFileServiceAvailable()) return [];
+  try {
+    const result = await NativeForwardDraftFiles.listAppFiles({ extension });
+    const files = Array.isArray(result.files) ? result.files : [];
+    return files
+      .filter((file): file is NativeFileResult & { name: string; text: string } =>
+        Boolean(file?.name) && typeof file?.text === "string",
+      )
+      .map((file) => ({ name: file.name, text: file.text, modifiedAt: file.modifiedAt }));
+  } catch (error) {
+    console.error("App-store list failed", error);
+    return [];
+  }
+}
+
+export async function deleteAppProjectFile(name: string): Promise<void> {
+  if (!isNativeFileServiceAvailable()) return;
+  try {
+    await NativeForwardDraftFiles.deleteAppFile({ name });
+  } catch (error) {
+    console.error("App-store delete failed", error);
   }
 }
 
