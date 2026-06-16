@@ -184,7 +184,7 @@ const slides: Slide[] = [
   },
   {
     title: "Review",
-    body: "Give each scene a status, then highlight any line and attach a note to it — so every change you want is pinned to the exact words.",
+    body: "Mark a scene For Review or Approved, then highlight any line and attach a note to it — so every change you want is pinned to the exact words.",
     illustration: <ReviewIllustration />,
   },
   {
@@ -209,7 +209,7 @@ const slides: Slide[] = [
   },
   {
     title: "Your work is safe",
-    body: "Everything autosaves and is backed up automatically on your device. Create a new script or import an existing one from the Options menu to begin.",
+    body: "Everything autosaves and is backed up automatically on your device. To begin, create a new script from Options → File, or import an existing one from Options → Import.",
     illustration: <DoneIllustration />,
   },
 ];
