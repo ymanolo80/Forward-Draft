@@ -12,14 +12,31 @@ export const emptyData: AppData = {
   tasks: [],
 };
 
+function createStoreIfMissing(db: IDBDatabase) {
+  if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+}
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = () => createStoreIfMissing(request.result);
+    request.onsuccess = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+      if (db.objectStoreNames.contains(STORE)) {
+        resolve(db);
+        return;
+      }
+      // The database exists but is missing our object store (left in a
+      // half-initialised state). Bump the version to trigger onupgradeneeded
+      // and recreate the store so the cache heals itself instead of failing
+      // every read.
+      const nextVersion = db.version + 1;
+      db.close();
+      const upgrade = indexedDB.open(DB_NAME, nextVersion);
+      upgrade.onupgradeneeded = () => createStoreIfMissing(upgrade.result);
+      upgrade.onsuccess = () => resolve(upgrade.result);
+      upgrade.onerror = () => reject(upgrade.error);
     };
-    request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
