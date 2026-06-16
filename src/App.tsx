@@ -16,6 +16,15 @@ import { createProjectFileDocument, parseProjectFileText, projectTitleFromFileNa
 import { createProject } from "./lib/seed";
 import { screenplayPageCount, wordCount } from "./lib/pageMetrics";
 import { emptyData, loadData, saveData } from "./lib/storage";
+import {
+  canRedo as historyCanRedo,
+  canUndo as historyCanUndo,
+  clearProjectHistory,
+  recordEdit,
+  redo as redoHistory,
+  undo as undoHistory,
+  type HistoryMap,
+} from "./lib/history";
 import type { AppData, AppMode, CoverPage, FadeTiming, FontFamilyChoice, FontSettings, Project, ProjectFileReference, VisibilityRule, WritingMode } from "./types";
 
 type ThemeMode = "system" | "light" | "dark";
@@ -94,8 +103,7 @@ export function App() {
     return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
   });
   const [loaded, setLoaded] = useState(false);
-  const [undoStack, setUndoStack] = useState<AppData[]>([]);
-  const [redoStack, setRedoStack] = useState<AppData[]>([]);
+  const [history, setHistory] = useState<HistoryMap>({});
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [coverOpen, setCoverOpen] = useState(false);
   const [coverDraft, setCoverDraft] = useState<CoverPage | undefined>();
@@ -195,8 +203,13 @@ export function App() {
 
   const setData = useCallback((next: AppData, options?: { dirty?: boolean }) => {
     if (options?.dirty !== false) markProjectDirty(next.activeProjectId);
-    setUndoStack((history) => [...history, data].slice(-50));
-    setRedoStack([]);
+    // Only in-place edits to the active project enter undo history; project
+    // switches, creates, imports and deletes change activeProjectId and are not
+    // recorded (recordEdit also ignores no-op edits).
+    if (data.activeProjectId && data.activeProjectId === next.activeProjectId) {
+      const editedProjectId = data.activeProjectId;
+      setHistory((current) => recordEdit(current, editedProjectId, data, next));
+    }
     setDataState(next);
     saveData(next).catch((error) => console.error("Autosave failed", error));
   }, [data, markProjectDirty]);
@@ -212,24 +225,22 @@ export function App() {
   }, [data, setData]);
 
   const undoLast = useCallback(() => {
-    const previous = undoStack.at(-1);
-    if (!previous) return;
-    markProjectDirty(previous.activeProjectId);
-    setUndoStack((history) => history.slice(0, -1));
-    setRedoStack((history) => [...history, data].slice(-50));
-    setDataState(previous);
-    saveData(previous).catch((error) => console.error("Autosave failed", error));
-  }, [data, undoStack]);
+    const result = undoHistory(history, data.activeProjectId, data);
+    if (!result) return;
+    markProjectDirty(data.activeProjectId);
+    setHistory(result.history);
+    setDataState(result.data);
+    saveData(result.data).catch((error) => console.error("Autosave failed", error));
+  }, [data, history, markProjectDirty]);
 
   const redoLast = useCallback(() => {
-    const next = redoStack.at(-1);
-    if (!next) return;
-    markProjectDirty(next.activeProjectId);
-    setRedoStack((history) => history.slice(0, -1));
-    setUndoStack((history) => [...history, data].slice(-50));
-    setDataState(next);
-    saveData(next).catch((error) => console.error("Autosave failed", error));
-  }, [data, redoStack]);
+    const result = redoHistory(history, data.activeProjectId, data);
+    if (!result) return;
+    markProjectDirty(data.activeProjectId);
+    setHistory(result.history);
+    setDataState(result.data);
+    saveData(result.data).catch((error) => console.error("Autosave failed", error));
+  }, [data, history, markProjectDirty]);
 
   useEffect(() => {
     if (!loaded || !activeProject?.fileReference) return undefined;
@@ -317,6 +328,8 @@ export function App() {
   const text = projectText(activeProject, data);
   const words = wordCount(text);
   const pages = projectPageCount(activeProject, text);
+  const undoAvailable = historyCanUndo(history, activeProject?.projectId);
+  const redoAvailable = historyCanRedo(history, activeProject?.projectId);
   const interfaceScale = Math.min(1.32, 1 + Math.max(0, documentZoom - 1) * 0.42);
   const appStyle = {
     "--draft-font-family": fontFamilyMap[fontSettings.family],
@@ -494,8 +507,10 @@ export function App() {
 
   const deleteActive = () => {
     if (!activeProject || !confirm(`Delete "${activeProject.title}"?`)) return;
+    const deletedProjectId = activeProject.projectId;
     const sceneIds = new Set(activeProject.scenes.map((scene) => scene.sceneId));
     const projects = data.projects.filter((project) => project.projectId !== activeProject.projectId);
+    setHistory((current) => clearProjectHistory(current, deletedProjectId));
     setData({
       projects,
       versions: data.versions.filter((version) => !sceneIds.has(version.sceneId)),
@@ -920,8 +935,8 @@ export function App() {
                 stats={{ words, pages }}
                 onUndo={undoLast}
                 onRedo={redoLast}
-                canUndo={undoStack.length > 0}
-                canRedo={redoStack.length > 0}
+                canUndo={undoAvailable}
+                canRedo={redoAvailable}
                 fontSettings={fontSettings}
                 setFontSettings={setFontSettings}
               />
@@ -934,8 +949,8 @@ export function App() {
                 stats={{ words, pages }}
                 onUndo={undoLast}
                 onRedo={redoLast}
-                canUndo={undoStack.length > 0}
-                canRedo={redoStack.length > 0}
+                canUndo={undoAvailable}
+                canRedo={redoAvailable}
                 fontSettings={fontSettings}
                 setFontSettings={setFontSettings}
               />
@@ -948,8 +963,8 @@ export function App() {
                 stats={{ words, pages }}
                 onUndo={undoLast}
                 onRedo={redoLast}
-                canUndo={undoStack.length > 0}
-                canRedo={redoStack.length > 0}
+                canUndo={undoAvailable}
+                canRedo={redoAvailable}
                 fontSettings={fontSettings}
                 setFontSettings={setFontSettings}
               />
