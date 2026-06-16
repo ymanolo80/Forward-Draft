@@ -1,4 +1,4 @@
-import jsPDF from "jspdf";
+import type jsPDF from "jspdf";
 import type { AppData, CoverPage, Project, ProjectFileReference, ReviewNote, Scene, SceneVersion } from "../types";
 import {
   createPortableFile,
@@ -741,8 +741,9 @@ function drawAnnotatedScript(pdf: jsPDF, project: Project, data: AppData, change
   }
 }
 
-export function exportFullPdf(project: Project, data: AppData, revisionMarked = false) {
-  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+export async function exportFullPdf(project: Project, data: AppData, revisionMarked = false) {
+  const { default: JsPDF } = await import("jspdf");
+  const pdf = new JsPDF({ unit: "mm", format: "a4" });
   drawCoverPage(pdf, project);
   if (revisionMarked) drawAnnotatedScript(pdf, project, data, false);
   else addCleanScript(pdf, project, data);
@@ -761,8 +762,9 @@ export function exportFullPdf(project: Project, data: AppData, revisionMarked = 
   );
 }
 
-export function exportChangesPdf(project: Project, data: AppData) {
-  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+export async function exportChangesPdf(project: Project, data: AppData) {
+  const { default: JsPDF } = await import("jspdf");
+  const pdf = new JsPDF({ unit: "mm", format: "a4" });
   drawCoverPage(pdf, project);
   drawAnnotatedScript(pdf, project, data, true);
   return savePortableFile(
