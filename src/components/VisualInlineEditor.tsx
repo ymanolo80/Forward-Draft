@@ -99,10 +99,22 @@ export const VisualInlineEditor = forwardRef<VisualInlineEditorHandle, VisualInl
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root || lastTextRef.current === text) return;
+    const wasFocused = document.activeElement === root;
     root.replaceChildren();
     appendInlineText(root, text);
     lastTextRef.current = text;
     selectionRef.current = undefined;
+    // When the text is replaced externally while focused (e.g. choosing an
+    // autocomplete suggestion), place the caret at the end so continued typing
+    // follows the inserted text instead of landing before it.
+    if (wasFocused && text) {
+      const range = document.createRange();
+      range.selectNodeContents(root);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
   }, [text]);
 
   return (
