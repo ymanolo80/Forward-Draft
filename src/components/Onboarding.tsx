@@ -1,0 +1,222 @@
+import { useEffect, useState, type ReactNode } from "react";
+
+// First-run walkthrough of Forward Draft's distinctive features. Shown once
+// (gated by a localStorage flag in App) and replayable from the Options menu.
+// Illustrations are CSS/markup mock-ups built from the app's own theme tokens
+// and script-line styling, so they mirror the real UI without going stale.
+
+interface OnboardingProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+interface Slide {
+  title: string;
+  body: string;
+  illustration: ReactNode;
+}
+
+function WelcomeIllustration() {
+  return (
+    <div className="ob-illus ob-welcome" aria-hidden="true">
+      <div className="ob-brand">
+        <img src="/forward-draft-mark.svg" alt="" />
+        <strong>Forward Draft</strong>
+      </div>
+      <div className="ob-stages">
+        <span className="ob-stage ob-stage-1">Write</span>
+        <span className="ob-arrow">→</span>
+        <span className="ob-stage ob-stage-2">Review</span>
+        <span className="ob-arrow">→</span>
+        <span className="ob-stage ob-stage-3">Rewrite</span>
+      </div>
+    </div>
+  );
+}
+
+function FadeIllustration() {
+  return (
+    <div className="ob-illus ob-fade" aria-hidden="true">
+      <div className="ob-page">
+        <div className="ob-line scene-heading ob-fade-3">INT. KITCHEN — DAY</div>
+        <div className="ob-line ob-fade-2">She reads the letter again.</div>
+        <div className="ob-line ob-fade-1">Then folds it, slowly.</div>
+        <div className="ob-line ob-active">
+          The kettle starts to scream<span className="ob-caret" />
+        </div>
+      </div>
+      <div className="ob-controls">
+        <div className="ob-control">
+          <span>Visible text</span>
+          <b>Last 3 lines</b>
+        </div>
+        <div className="ob-control">
+          <span>Disappearing text</span>
+          <b>Fade after 3s</b>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReviewIllustration() {
+  return (
+    <div className="ob-illus ob-review" aria-hidden="true">
+      <div className="ob-page">
+        <div className="ob-line scene-heading">INT. KITCHEN — DAY</div>
+        <div className="ob-line">
+          She reads <span className="ob-highlight">the letter</span> again.
+        </div>
+      </div>
+      <div className="ob-note">
+        <span className="ob-note-quote">“the letter”</span>
+        <span>Clarify what it says</span>
+      </div>
+      <span className="ob-status">Needs Rewrite</span>
+    </div>
+  );
+}
+
+function RewriteIllustration() {
+  return (
+    <div className="ob-illus ob-rewrite" aria-hidden="true">
+      <div className="ob-neighbor ob-prev">▲ INT. HALLWAY — earlier</div>
+      <div className="ob-scene-active">
+        <div className="ob-line scene-heading">INT. KITCHEN — DAY</div>
+        <div className="ob-line">She folds the letter, slowly.</div>
+        <span className="ob-version">v3</span>
+      </div>
+      <div className="ob-neighbor ob-next">▼ EXT. STREET — next</div>
+      <div className="ob-toggle">Show neighbouring scenes</div>
+    </div>
+  );
+}
+
+function ExportIllustration() {
+  return (
+    <div className="ob-illus ob-export" aria-hidden="true">
+      <div className="ob-menu">
+        <div className="ob-menu-item">Fountain</div>
+        <div className="ob-menu-item">Final Draft</div>
+        <div className="ob-menu-item">PDF — full script</div>
+        <div className="ob-menu-item">Revision PDF — changes marked</div>
+        <div className="ob-menu-item ob-menu-hot">Changes PDF — with notes</div>
+      </div>
+    </div>
+  );
+}
+
+function DoneIllustration() {
+  return (
+    <div className="ob-illus ob-done" aria-hidden="true">
+      <div className="ob-cloud">
+        <svg viewBox="0 0 64 44" width="84" height="58" role="img">
+          <path
+            d="M20 40h26a12 12 0 0 0 2-23.8A16 16 0 0 0 16 14 11 11 0 0 0 20 40Z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+          <path className="ob-check" d="M25 27l5 5 9-11" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+      <p>Autosaved &amp; backed up</p>
+    </div>
+  );
+}
+
+const slides: Slide[] = [
+  {
+    title: "Welcome to Forward Draft",
+    body: "A focused home for your script through three stages — Write, Review, and Rewrite. Here's what makes each one different.",
+    illustration: <WelcomeIllustration />,
+  },
+  {
+    title: "Write with disappearing text",
+    body: "Stay in flow: only your most recent lines stay on screen and older text gently fades, so you keep moving forward instead of editing. Tune it with the Visible text window (current line, last few lines, or previous scene) and how quickly text disappears.",
+    illustration: <FadeIllustration />,
+  },
+  {
+    title: "Review and compare",
+    body: "Give each scene a status, highlight any line and attach a note to it, and compare versions side by side to see exactly what changed between drafts.",
+    illustration: <ReviewIllustration />,
+  },
+  {
+    title: "Rewrite with everything in view",
+    body: "Work scene by scene with your review notes beside you, and keep a version history of every pass. Show or hide the previous and next scene to stay oriented in the flow of the script.",
+    illustration: <RewriteIllustration />,
+  },
+  {
+    title: "Export however you need",
+    body: "Export to Fountain or Final Draft (FDX), or to PDF — the full script, a revision PDF with changes marked, or a changes-only PDF that includes your notes.",
+    illustration: <ExportIllustration />,
+  },
+  {
+    title: "Your work is safe",
+    body: "Everything autosaves and is backed up automatically on your device. Create a new script or import an existing one from the Options menu to begin.",
+    illustration: <DoneIllustration />,
+  },
+];
+
+export function Onboarding({ open, onClose }: OnboardingProps) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (open) setIndex(0);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      else if (event.key === "ArrowRight") setIndex((current) => Math.min(slides.length - 1, current + 1));
+      else if (event.key === "ArrowLeft") setIndex((current) => Math.max(0, current - 1));
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const slide = slides[index];
+  const isLast = index === slides.length - 1;
+
+  return (
+    <div className="modal-scrim" role="dialog" aria-modal="true" aria-label="How Forward Draft works">
+      <section className="onboarding-card">
+        <button className="onboarding-skip" onClick={onClose} aria-label="Skip the walkthrough">
+          Skip
+        </button>
+        <div className="onboarding-stage" key={index}>
+          {slide.illustration}
+        </div>
+        <div className="onboarding-copy">
+          <strong>{slide.title}</strong>
+          <p>{slide.body}</p>
+        </div>
+        <footer className="onboarding-footer">
+          <div className="onboarding-dots" aria-hidden="true">
+            {slides.map((_, dot) => (
+              <span key={dot} className={dot === index ? "active" : ""} />
+            ))}
+          </div>
+          <div className="onboarding-nav">
+            {index > 0 && (
+              <button onClick={() => setIndex((current) => Math.max(0, current - 1))}>Back</button>
+            )}
+            {isLast ? (
+              <button className="primary" onClick={onClose}>
+                Start writing
+              </button>
+            ) : (
+              <button className="primary" onClick={() => setIndex((current) => Math.min(slides.length - 1, current + 1))}>
+                Next
+              </button>
+            )}
+          </div>
+        </footer>
+      </section>
+    </div>
+  );
+}

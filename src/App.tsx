@@ -3,6 +3,7 @@ import { ReviewMode } from "./components/ReviewMode";
 import { RewriteMode } from "./components/RewriteMode";
 import { WriteMode } from "./components/WriteMode";
 import { useDialog } from "./components/DialogProvider";
+import { Onboarding } from "./components/Onboarding";
 import { autosaveProjectFile, createProjectFile, exportChangesPdf, exportFountainFile, exportFullPdf, saveProjectFile, exportText } from "./lib/exports";
 import { isNativeFileServiceAvailable, openNativeTextFile, readNativeTextFileReference, readTextFile } from "./lib/fileService";
 import { createId, nowIso } from "./lib/ids";
@@ -113,6 +114,21 @@ export function App() {
   const [loaded, setLoaded] = useState(false);
   const [history, setHistory] = useState<HistoryMap>({});
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(() => {
+    try {
+      return !localStorage.getItem("forward-draft-onboarded");
+    } catch {
+      return false;
+    }
+  });
+  const closeOnboarding = useCallback(() => {
+    setOnboardingOpen(false);
+    try {
+      localStorage.setItem("forward-draft-onboarded", "1");
+    } catch {
+      /* ignore storage errors */
+    }
+  }, []);
   const [coverOpen, setCoverOpen] = useState(false);
   const [coverDraft, setCoverDraft] = useState<CoverPage | undefined>();
   const [externalProjectUpdate, setExternalProjectUpdate] = useState<TextFileSource | undefined>();
@@ -882,6 +898,11 @@ export function App() {
                   <button onClick={openCoverPage} disabled={!activeProject}>Edit Cover Page</button>
                 </section>
 
+                <section className="menu-section">
+                  <strong>Help</strong>
+                  <button onClick={() => { setOnboardingOpen(true); setOptionsOpen(false); }}>How Forward Draft works</button>
+                </section>
+
               </div>
             </details>
           </div>
@@ -966,6 +987,8 @@ export function App() {
           </section>
         </div>
       )}
+
+      <Onboarding open={onboardingOpen} onClose={closeOnboarding} />
 
       <main className="workspace">
         {activeProject ? (

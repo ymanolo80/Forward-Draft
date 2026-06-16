@@ -3455,3 +3455,367 @@ mark {
     transform: translateY(0);
   }
 }
+
+/* --- Onboarding walkthrough --------------------------------------------- */
+.onboarding-card {
+  width: min(540px, 100%);
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--surface, var(--page)) 94%, transparent);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+  position: relative;
+  backdrop-filter: blur(24px);
+}
+.onboarding-skip {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.onboarding-stage {
+  height: 200px;
+  border-radius: 14px;
+  border: 1px solid var(--soft-line);
+  background: var(--page);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  animation: soft-arrive 0.32s ease;
+}
+.onboarding-copy {
+  display: grid;
+  gap: 6px;
+}
+.onboarding-copy strong {
+  font-size: 17px;
+}
+.onboarding-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.onboarding-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.onboarding-dots {
+  display: flex;
+  gap: 6px;
+}
+.onboarding-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line);
+  transition: background 0.2s;
+}
+.onboarding-dots span.active {
+  background: var(--text);
+}
+.onboarding-nav {
+  display: flex;
+  gap: 8px;
+}
+.onboarding-nav button {
+  min-height: 36px;
+  padding: 0 16px;
+}
+
+.ob-illus {
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+  align-content: center;
+  font-family: var(--draft-font-family);
+}
+.ob-page {
+  display: grid;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.ob-line {
+  line-height: 1.4;
+}
+.ob-illus .scene-heading {
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.ob-welcome {
+  justify-items: center;
+  gap: 18px;
+  font-family: inherit;
+}
+.ob-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ob-brand img {
+  width: 26px;
+  height: 26px;
+}
+.ob-brand strong {
+  font-size: 16px;
+}
+.ob-stages {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ob-stage {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 13px;
+}
+.ob-stage-1 {
+  animation: ob-pulse 3s infinite;
+}
+.ob-stage-2 {
+  animation: ob-pulse 3s infinite 1s;
+}
+.ob-stage-3 {
+  animation: ob-pulse 3s infinite 2s;
+}
+.ob-arrow {
+  color: var(--muted);
+}
+@keyframes ob-pulse {
+  0%,
+  100% {
+    background: transparent;
+  }
+  33% {
+    background: var(--note);
+  }
+}
+
+.ob-fade-1 {
+  animation: ob-fade-old 6s infinite;
+}
+.ob-fade-2 {
+  animation: ob-fade-old 6s infinite 0.4s;
+}
+.ob-fade-3 {
+  animation: ob-fade-old 6s infinite 0.8s;
+}
+@keyframes ob-fade-old {
+  0% {
+    opacity: 0.85;
+  }
+  40%,
+  100% {
+    opacity: 0.12;
+  }
+}
+.ob-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--text);
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  animation: ob-blink 1s steps(1) infinite;
+}
+@keyframes ob-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.ob-controls {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  font-family: system-ui, sans-serif;
+}
+.ob-control {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  padding: 6px 10px;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: var(--page);
+}
+.ob-control span {
+  color: var(--muted);
+}
+.ob-control b {
+  font-weight: 600;
+}
+
+.ob-highlight {
+  background: var(--highlight);
+  border-radius: 2px;
+  padding: 0 1px;
+  animation: ob-arrive-hl 4s infinite;
+}
+@keyframes ob-arrive-hl {
+  0%,
+  20% {
+    background: transparent;
+  }
+  30%,
+  100% {
+    background: var(--highlight);
+  }
+}
+.ob-note {
+  justify-self: end;
+  max-width: 220px;
+  background: var(--note);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: system-ui, sans-serif;
+  font-size: 11.5px;
+  display: grid;
+  gap: 2px;
+  animation: soft-arrive 0.5s ease 1.2s both;
+}
+.ob-note-quote {
+  color: var(--muted);
+}
+.ob-status {
+  justify-self: start;
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--note);
+  border: 1px solid var(--line);
+}
+
+.ob-rewrite {
+  gap: 6px;
+}
+.ob-neighbor {
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 5px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  animation: ob-neighbor 5s infinite;
+}
+@keyframes ob-neighbor {
+  0%,
+  40% {
+    opacity: 1;
+  }
+  60%,
+  90% {
+    opacity: 0.12;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.ob-scene-active {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--page);
+  display: grid;
+  gap: 5px;
+}
+.ob-version {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-family: system-ui, sans-serif;
+  font-size: 10px;
+  color: var(--muted);
+  border: 1px solid var(--soft-line);
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+.ob-toggle {
+  justify-self: center;
+  margin-top: 4px;
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+
+.ob-export {
+  justify-items: center;
+}
+.ob-menu {
+  width: min(300px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--page);
+  font-family: system-ui, sans-serif;
+}
+.ob-menu-item {
+  font-size: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--soft-line);
+}
+.ob-menu-item:last-child {
+  border-bottom: none;
+}
+.ob-menu-hot {
+  animation: ob-hot 4s infinite;
+}
+@keyframes ob-hot {
+  0%,
+  60%,
+  100% {
+    background: transparent;
+  }
+  75% {
+    background: var(--note);
+  }
+}
+
+.ob-done {
+  justify-items: center;
+  gap: 12px;
+  color: var(--green, #2f6f63);
+  font-family: system-ui, sans-serif;
+}
+.ob-done p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.ob-check {
+  stroke-dasharray: 32;
+  stroke-dashoffset: 32;
+  animation: ob-draw 1s ease 0.3s forwards;
+}
+@keyframes ob-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-illus *,
+  .onboarding-stage {
+    animation: none !important;
+  }
+}
