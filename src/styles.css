@@ -1551,6 +1551,11 @@ mark {
   z-index: 61;
   box-shadow: var(--shadow);
 }
+.scene-context-delete.rewrite-button {
+  border-color: #d83a3a;
+  background: #d83a3a;
+  color: #fff;
+}
 
 .scene-drawer-list button.reorderable {
   grid-template-columns: 24px 1fr;
