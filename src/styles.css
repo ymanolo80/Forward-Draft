@@ -1546,32 +1546,10 @@ mark {
   inset: 0;
   z-index: 60;
 }
-.scene-context-menu {
+.scene-context-delete {
   position: fixed;
   z-index: 61;
-  min-width: 150px;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--menu-surface, var(--page));
   box-shadow: var(--shadow);
-  backdrop-filter: blur(20px);
-}
-.scene-context-menu button {
-  width: 100%;
-  text-align: left;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  font-size: 13px;
-  cursor: pointer;
-}
-.scene-context-menu button.danger-command {
-  color: #d83a3a;
-}
-.scene-context-menu button:hover {
-  background: rgba(127, 127, 127, 0.12);
 }
 
 .scene-drawer-list button.reorderable {

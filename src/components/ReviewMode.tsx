@@ -725,20 +725,18 @@ export function ReviewMode({
               setSceneMenu(undefined);
             }}
           />
-          <div className="scene-context-menu" style={{ top: sceneMenu.y, left: sceneMenu.x }} role="menu">
-            <button
-              type="button"
-              role="menuitem"
-              className="danger-command"
-              onClick={() => {
-                const target = sceneMenu.scene;
-                setSceneMenu(undefined);
-                void confirmDeleteScene(target);
-              }}
-            >
-              Delete {sceneLabel.toLowerCase()} {sceneMenu.scene.order}
-            </button>
-          </div>
+          <button
+            type="button"
+            className="rewrite-button scene-context-delete"
+            style={{ top: sceneMenu.y, left: sceneMenu.x }}
+            onClick={() => {
+              const target = sceneMenu.scene;
+              setSceneMenu(undefined);
+              void confirmDeleteScene(target);
+            }}
+          >
+            Delete {sceneLabel} {sceneMenu.scene.order}
+          </button>
         </>
       )}
       {scene && current ? (
