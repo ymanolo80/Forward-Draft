@@ -62,17 +62,6 @@ export async function autosaveProjectFile(project: Project, data: AppData): Prom
   };
 }
 
-export async function exportProjectFile(project: Project, data: AppData): Promise<ProjectFileSaveResult> {
-  return savePortableFile(
-    {
-      name: projectFileName(project),
-      mimeType: PROJECT_FILE_MIME,
-      content: serializeProjectFile(project, data),
-    },
-    projectFilePickerOptions,
-  );
-}
-
 function safeFileStem(value: string) {
   return value.replace(/[<>:"/\\|?*\x00-\x1F]/g, " ").replace(/\s+/g, " ").trim() || "Untitled Draft";
 }
