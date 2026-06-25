@@ -2864,6 +2864,7 @@ textarea:focus-visible,
 
 .script-line,
 .screenplay-block,
+.screenplay-heading-line,
 .visual-inline-editor,
 .rewrite-visual-editor {
   font-size: var(--draft-view-font-size);
