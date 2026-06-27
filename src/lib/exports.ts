@@ -413,7 +413,7 @@ function rowTextLeft(pdf: jsPDF, row: AnnotatedRow) {
   return row.x;
 }
 
-function basicChangeAnchor(oldText: string | undefined, currentText: string) {
+function basicChangeAnchor(oldText: string | undefined, currentText: string): ChangeAnchor | undefined {
   if (!oldText || oldText === currentText) return undefined;
   let prefix = 0;
   while (prefix < oldText.length && prefix < currentText.length && oldText[prefix] === currentText[prefix]) prefix += 1;
@@ -429,19 +429,23 @@ function basicChangeAnchor(oldText: string | undefined, currentText: string) {
     const start = currentText.indexOf(newChanged, prefix);
     if (start >= 0) {
       return {
-        text: [`"${oldChanged || "Added text"}"`, "Changed in rewrite"].join("\n"),
+        kind: oldChanged ? "change" : "add",
+        text: oldChanged ? [`"${oldChanged}"`, "Changed in rewrite"].join("\n") : "Added in rewrite",
         span: { start, end: start + newChanged.length },
       };
     }
   }
-  if (oldChanged) return { text: [`"${oldChanged}"`, "Deleted in rewrite"].join("\n"), deletionAt: prefix };
+  if (oldChanged) return { kind: "delete", text: [`"${oldChanged}"`, "Deleted in rewrite"].join("\n"), deletionAt: prefix };
   return undefined;
 }
+
+type ChangeKind = "add" | "change" | "delete" | "note";
 
 interface ChangeAnchor {
   text: string;
   span?: { start: number; end: number };
   deletionAt?: number;
+  kind?: ChangeKind;
 }
 
 function wordTokens(text: string) {
@@ -473,12 +477,18 @@ function diffChangeAnchors(oldText: string | undefined, currentText: string): Ch
     return fallback ? [fallback] : [];
   }
 
+  // Match words case-insensitively: a caps -> lower-case edit is cosmetic, not a
+  // content change, and ignoring it lets genuinely new lines be seen as additions
+  // instead of being folded into an adjacent reword.
+  const oldLower = oldWords.map((w) => w.text.toLowerCase());
+  const curLower = currentWords.map((w) => w.text.toLowerCase());
+
   const columnCount = currentWords.length + 1;
   const lcs = new Uint16Array((oldWords.length + 1) * columnCount);
   for (let oldIndex = 1; oldIndex <= oldWords.length; oldIndex += 1) {
     for (let currentIndex = 1; currentIndex <= currentWords.length; currentIndex += 1) {
       const offset = oldIndex * columnCount + currentIndex;
-      if (oldWords[oldIndex - 1].text === currentWords[currentIndex - 1].text) {
+      if (oldLower[oldIndex - 1] === curLower[currentIndex - 1]) {
         lcs[offset] = lcs[(oldIndex - 1) * columnCount + currentIndex - 1] + 1;
       } else {
         lcs[offset] = Math.max(lcs[(oldIndex - 1) * columnCount + currentIndex], lcs[oldIndex * columnCount + currentIndex - 1]);
@@ -490,7 +500,7 @@ function diffChangeAnchors(oldText: string | undefined, currentText: string): Ch
   let oldIndex = oldWords.length;
   let currentIndex = currentWords.length;
   while (oldIndex > 0 || currentIndex > 0) {
-    if (oldIndex > 0 && currentIndex > 0 && oldWords[oldIndex - 1].text === currentWords[currentIndex - 1].text) {
+    if (oldIndex > 0 && currentIndex > 0 && oldLower[oldIndex - 1] === curLower[currentIndex - 1]) {
       operations.push({ type: "same", oldIndex: oldIndex - 1, currentIndex: currentIndex - 1 });
       oldIndex -= 1;
       currentIndex -= 1;
@@ -533,12 +543,13 @@ function diffChangeAnchors(oldText: string | undefined, currentText: string): Ch
     if (inserted.length) {
       const start = currentWords[Math.min(...inserted)].start;
       const end = currentWords[Math.max(...inserted)].end;
-      anchors.push({ text: changeCardText(oldChanged, true), span: { start, end } });
+      const kind: ChangeKind = deleted.length ? "change" : "add";
+      anchors.push({ kind, text: changeCardText(oldChanged, true), span: { start, end } });
       lastCurrentEnd = end;
     } else if (deleted.length) {
       const nextSame = operations.slice(cursor).find((item) => item.type === "same" && item.currentIndex !== undefined);
       const deletionAt = lastCurrentEnd || (nextSame?.currentIndex !== undefined ? currentWords[nextSame.currentIndex].start : 0);
-      anchors.push({ text: changeCardText(oldChanged, false), deletionAt });
+      anchors.push({ kind: "delete", text: changeCardText(oldChanged, false), deletionAt });
     }
   }
 
@@ -606,7 +617,7 @@ function drawAnnotatedScene(
   const rows = layoutAnnotatedRows(pdf, sceneText);
   const noteAnchors: ChangeAnchor[] = notes.flatMap((note) => {
     const anchor = mappedNoteAnchor(note, oldVersionsById.get(note.versionId), sceneText, currentVersionId);
-    return anchor ? [{ text: noteCardText(note), ...anchor }] : [];
+    return anchor ? [{ kind: "note" as const, text: noteCardText(note), ...anchor }] : [];
   });
   const changeAnchors = diffChangeAnchors(baseVersionText, sceneText).filter((change) => !noteAnchors.some((noteAnchor) => anchorsOverlap(change, noteAnchor)));
   noteAnchors.push(...changeAnchors);
@@ -635,7 +646,7 @@ function drawAnnotatedScene(
       y += row.gap;
       rowY.set(row, y);
       const rowHighlights = noteAnchors.filter(({ span }) => span && span.end > row.rangeStart && span.start < row.rangeEnd);
-      rowHighlights.forEach(({ span }) => {
+      rowHighlights.forEach(({ span, kind }) => {
         if (!span) return;
         const start = Math.max(0, span.start - row.rangeStart);
         const end = Math.min(row.text.length, span.end - row.rangeStart);
@@ -643,7 +654,8 @@ function drawAnnotatedScene(
         const prefix = row.text.slice(0, start);
         const highlighted = row.text.slice(start, end);
         const textLeft = rowTextLeft(pdf, row);
-        pdf.setFillColor(255, 244, 151);
+        if (kind === "add") pdf.setFillColor(190, 227, 186);
+        else pdf.setFillColor(255, 244, 151);
         pdf.rect(
           textLeft + pdfTextWidth(pdf, prefix) - 0.6,
           y - 3.5,
@@ -730,12 +742,42 @@ function drawAnnotatedScript(pdf: jsPDF, project: Project, data: AppData, change
   }
 }
 
+function drawChangesLegend(pdf: jsPDF) {
+  const x = 24;
+  let y = 172;
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9);
+  pdf.setTextColor(44, 54, 64);
+  pdf.text("HOW TO READ THIS REVISION", x, y);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8.5);
+  const swatch = (r: number, g: number, b: number, label: string) => {
+    y += 8.5;
+    pdf.setFillColor(r, g, b);
+    pdf.setDrawColor(151, 171, 183);
+    pdf.rect(x, y - 3, 7, 4, "FD");
+    pdf.setTextColor(60, 68, 78);
+    pdf.text(label, x + 11, y);
+  };
+  swatch(190, 227, 186, "Added  -  new in this draft");
+  swatch(255, 244, 151, "Changed  -  reworded (old wording is shown in the margin)");
+  y += 8.5;
+  pdf.setTextColor(60, 68, 78);
+  pdf.text("Deleted  -  shown as a card in the right margin", x + 11, y);
+  y += 10;
+  pdf.setFontSize(8);
+  pdf.setTextColor(120, 126, 134);
+  pdf.text("Margin cards explain each mark; your review notes appear there too.", x, y);
+}
+
 export async function exportFullPdf(project: Project, data: AppData, revisionMarked = false) {
   const { default: JsPDF } = await import("jspdf");
   const pdf = new JsPDF({ unit: "mm", format: "a4" });
   drawCoverPage(pdf, project);
-  if (revisionMarked) drawAnnotatedScript(pdf, project, data, false);
-  else addCleanScript(pdf, project, data);
+  if (revisionMarked) {
+    drawChangesLegend(pdf);
+    drawAnnotatedScript(pdf, project, data, false);
+  } else addCleanScript(pdf, project, data);
   return savePortableFile(
     {
       name: `${safeFileStem(project.title)}${revisionMarked ? "-revision-notes" : ""}.pdf`,
@@ -755,6 +797,7 @@ export async function exportChangesPdf(project: Project, data: AppData) {
   const { default: JsPDF } = await import("jspdf");
   const pdf = new JsPDF({ unit: "mm", format: "a4" });
   drawCoverPage(pdf, project);
+  drawChangesLegend(pdf);
   drawAnnotatedScript(pdf, project, data, true);
   return savePortableFile(
     {
