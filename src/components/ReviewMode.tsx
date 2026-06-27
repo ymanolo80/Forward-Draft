@@ -741,6 +741,9 @@ export function ReviewMode({
       )}
       {scene && current ? (
         <div className={`mode-workspace review-layout-shell ${scenePaneOpen ? "" : "scenes-collapsed"}`}>
+          {scenePaneOpen && (
+            <div className="mobile-drawer-scrim" onClick={() => setScenePaneOpen(false)} aria-hidden="true" />
+          )}
           {scenePaneOpen ? (
             <aside className="review-scene-pane">
               <header>

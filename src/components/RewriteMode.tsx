@@ -208,13 +208,7 @@ export function RewriteMode({
   }, []);
 
   useEffect(() => {
-    const onToggleSceneList = () => {
-      if (window.matchMedia("(max-width: 900px)").matches) {
-        setQueueOpen(true);
-        return;
-      }
-      setQueueOpen((open) => !open);
-    };
+    const onToggleSceneList = () => setQueueOpen((open) => !open);
     window.addEventListener(SCENE_LIST_TOGGLE_EVENT, onToggleSceneList);
     return () => window.removeEventListener(SCENE_LIST_TOGGLE_EVENT, onToggleSceneList);
   }, []);
@@ -450,6 +444,9 @@ export function RewriteMode({
   return (
     <section className="mode-panel rewrite-panel">
       <div className={`mode-workspace rewrite-layout ${queueOpen ? "" : "queue-collapsed"}`}>
+        {queueOpen && (
+          <div className="mobile-drawer-scrim" onClick={() => setQueueOpen(false)} aria-hidden="true" />
+        )}
         {queueOpen ? (
           <aside className="rewrite-queue">
             <header>

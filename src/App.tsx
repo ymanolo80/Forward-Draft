@@ -688,7 +688,6 @@ export function App() {
               aria-label={`Toggle ${sceneListLabel}`}
               title={`Toggle ${sceneListLabel}`}
             >
-              <span className="sidebar-toggle-glyph" aria-hidden="true" />
               <span>{sceneListLabel}</span>
             </button>
           ) : null}
@@ -919,6 +918,10 @@ export function App() {
           </div>
         </div>
       </header>
+
+      {toolsOpen && (
+        <div className="mobile-drawer-scrim" onClick={() => setToolsOpen(false)} aria-hidden="true" />
+      )}
 
       {coverOpen && coverDraft && (
         <div className="modal-scrim" role="dialog" aria-modal="true" aria-label="Cover page editor">

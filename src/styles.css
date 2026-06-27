@@ -994,39 +994,6 @@ p {
   background: var(--page);
 }
 
-.sidebar-toggle-glyph {
-  position: relative;
-  display: block;
-  width: 18px;
-  height: 16px;
-  border: 1.6px solid currentColor;
-  border-radius: 4px;
-  opacity: 0.9;
-}
-
-.sidebar-toggle-glyph::before,
-.sidebar-toggle-glyph::after {
-  content: "";
-  position: absolute;
-  background: currentColor;
-  opacity: 0.7;
-}
-
-.sidebar-toggle-glyph::before {
-  top: 2px;
-  bottom: 2px;
-  left: 5px;
-  width: 1.5px;
-}
-
-.sidebar-toggle-glyph::after {
-  top: 4px;
-  left: 9px;
-  right: 3px;
-  height: 1.5px;
-  box-shadow: 0 4px 0 currentColor, 0 8px 0 currentColor;
-}
-
 .compare-page {
   width: 100%;
 }
@@ -4040,8 +4007,9 @@ mark {
   }
 }
 
-/* Tools toggle is phone-only (desktop/iPad always show the tools column). */
-.topbar-tools-toggle {
+/* Tools toggle + drawer scrim are phone-only (desktop/iPad show columns). */
+.topbar-tools-toggle,
+.mobile-drawer-scrim {
   display: none;
 }
 
@@ -4139,13 +4107,25 @@ mark {
     border-radius: 0 14px 14px 0;
   }
 
-  /* Options: drop from the button, width-capped & scrollable (a fixed bottom
-     sheet is trapped by the top bar's backdrop-filter, so keep it absolute). */
+  /* tap-outside-to-close backdrop for the drawers (below them, below the bar) */
+  .mobile-drawer-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: rgba(0, 0, 0, 0.45);
+  }
+
+  /* Options: full-width sheet under the bar. position:fixed is trapped by the
+     top bar's backdrop-filter, so it resolves against the full-width bar —
+     left/right pin it to the viewport edges, top:100% drops it below the bar. */
   .options-menu .menu-popover {
-    left: 0;
-    right: auto;
-    width: min(340px, calc(100vw - 20px));
+    position: fixed;
+    top: calc(100% + 6px);
+    left: 10px;
+    right: 10px;
+    width: auto;
     max-width: none;
-    max-height: 78dvh;
+    max-height: 70dvh;
   }
 }
