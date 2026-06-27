@@ -645,7 +645,10 @@ function drawAnnotatedScene(
   const rows = layoutAnnotatedRows(pdf, sceneText);
   const noteAnchors: ChangeAnchor[] = notes.flatMap((note) => {
     const anchor = mappedNoteAnchor(note, oldVersionsById.get(note.versionId), sceneText, currentVersionId);
-    return anchor ? [{ kind: "note" as const, text: noteCardText(note), ...anchor }] : [];
+    // Colour review notes to match the change scheme: Cut = delete (red),
+    // Rewrite = change (orange); other note types stay neutral.
+    const kind: ChangeKind = note.noteType === "Cut" ? "delete" : note.noteType === "Rewrite" ? "change" : "note";
+    return anchor ? [{ kind, text: noteCardText(note), ...anchor }] : [];
   });
   const changeAnchors = diffChangeAnchors(baseVersionText, sceneText).filter((change) => !noteAnchors.some((noteAnchor) => anchorsOverlap(change, noteAnchor)));
   noteAnchors.push(...changeAnchors);
@@ -684,6 +687,7 @@ function drawAnnotatedScene(
         const textLeft = rowTextLeft(pdf, row);
         if (kind === "add") pdf.setFillColor(190, 227, 186);
         else if (kind === "change") pdf.setFillColor(255, 205, 150);
+        else if (kind === "delete") pdf.setFillColor(250, 214, 214);
         else pdf.setFillColor(255, 244, 151);
         pdf.rect(
           textLeft + pdfTextWidth(pdf, prefix) - 0.6,
