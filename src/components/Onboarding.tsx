@@ -204,7 +204,7 @@ const slides: Slide[] = [
   },
   {
     title: "Export however you need",
-    body: "Export to Fountain or Final Draft (FDX), or to PDF — the full script, a revision PDF of the full script with changes marked, or a changes-only PDF of the changed scenes with your notes.",
+    body: "Export to Fountain, plain text, or PDF — the full script, a revision PDF with changes marked, or a changes-only PDF with your notes. You can also import Fountain, TXT and Final Draft files.",
     illustration: <ExportIllustration />,
   },
   {
