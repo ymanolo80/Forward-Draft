@@ -4039,3 +4039,68 @@ mark {
     font-size: 13.5px;
   }
 }
+
+/* iPhone portrait (<=480px, below iPad's 768 — iPad/Mac untouched).
+   One scrolling column, content-first and uniform across modes; Options as a
+   bottom sheet so it can't run off-screen. */
+@media (max-width: 480px) {
+  .mode-panel {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px 10px calc(40px + var(--safe-bottom));
+  }
+
+  .mode-workspace,
+  .review-layout-shell,
+  .review-layout-shell.scenes-collapsed,
+  .rewrite-layout,
+  .rewrite-layout.queue-collapsed {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
+  }
+
+  /* drop the explicit column/row pinning that forces a 2nd track in a 1-col grid */
+  .review-layout-shell.scenes-collapsed .review-stage,
+  .review-layout-shell.scenes-collapsed .mode-tools,
+  .rewrite-layout.queue-collapsed .rewrite-main,
+  .rewrite-layout.queue-collapsed .rewrite-tools {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  /* uniform order: primary content first, scene/queue nav next, tools last */
+  .document-stage,
+  .review-stage,
+  .rewrite-main {
+    order: 1;
+    overflow: visible;
+  }
+  .review-scene-pane,
+  .rewrite-queue {
+    order: 2;
+    position: static;
+    max-height: 42dvh;
+  }
+  .mode-tools,
+  .write-workspace .mode-tools {
+    order: 3;
+    position: static;
+    max-height: none;
+  }
+
+  /* Options: drop from the button's left edge (it sits left on its row),
+     cap width to the viewport and scroll — can't run off-screen.
+     (Can't use a fixed bottom sheet: the topbar's backdrop-filter would
+     trap position:fixed to the topbar, not the viewport.) */
+  .options-menu .menu-popover {
+    left: 0;
+    right: auto;
+    width: min(340px, calc(100vw - 20px));
+    max-width: none;
+    max-height: 78dvh;
+  }
+}
