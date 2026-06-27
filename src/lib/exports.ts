@@ -523,8 +523,28 @@ function diffChangeAnchors(oldText: string | undefined, currentText: string): Ch
   while (cursor < operations.length) {
     const operation = operations[cursor];
     if (operation.type === "same") {
-      lastCurrentEnd = currentWords[operation.currentIndex ?? 0]?.end ?? lastCurrentEnd;
-      cursor += 1;
+      const oi = operation.oldIndex ?? 0;
+      const ci = operation.currentIndex ?? 0;
+      // Matched case-insensitively but the actual text differs (e.g. caps -> lower
+      // case): an in-place reword. Collect the run and mark it as a change.
+      if (oldWords[oi] && currentWords[ci] && oldWords[oi].text !== currentWords[ci].text) {
+        const startWord = currentWords[ci];
+        let endWord = startWord;
+        const oldParts: string[] = [];
+        while (cursor < operations.length && operations[cursor].type === "same") {
+          const o = operations[cursor].oldIndex ?? 0;
+          const c = operations[cursor].currentIndex ?? 0;
+          if (!oldWords[o] || !currentWords[c] || oldWords[o].text === currentWords[c].text) break;
+          oldParts.push(oldWords[o].text);
+          endWord = currentWords[c];
+          lastCurrentEnd = endWord.end;
+          cursor += 1;
+        }
+        anchors.push({ kind: "change", text: changeCardText(oldParts.join(" "), true), span: { start: startWord.start, end: endWord.end } });
+      } else {
+        lastCurrentEnd = currentWords[ci]?.end ?? lastCurrentEnd;
+        cursor += 1;
+      }
       continue;
     }
 
@@ -580,15 +600,23 @@ function rowAnchorX(pdf: jsPDF, row: AnnotatedRow, anchor: Pick<ChangeAnchor, "s
   return textLeft;
 }
 
-function drawAnnotationCard(pdf: jsPDF, text: string, x: number, y: number, width: number) {
+const KIND_CARD: Record<ChangeKind, { fill: [number, number, number]; border: [number, number, number]; text: [number, number, number] }> = {
+  add: { fill: [223, 242, 219], border: [120, 170, 110], text: [40, 80, 40] },
+  change: { fill: [255, 228, 196], border: [210, 150, 90], text: [120, 70, 20] },
+  delete: { fill: [250, 214, 214], border: [200, 90, 90], text: [140, 40, 40] },
+  note: { fill: [255, 252, 242], border: [151, 171, 183], text: [44, 54, 64] },
+};
+
+function drawAnnotationCard(pdf: jsPDF, text: string, x: number, y: number, width: number, kind: ChangeKind = "note") {
+  const c = KIND_CARD[kind];
   const lines = wrapUnicodeText(pdf, text, width - 6);
   const height = Math.max(16, lines.length * 4 + 8);
-  pdf.setDrawColor(151, 171, 183);
-  pdf.setFillColor(255, 252, 242);
+  pdf.setDrawColor(c.border[0], c.border[1], c.border[2]);
+  pdf.setFillColor(c.fill[0], c.fill[1], c.fill[2]);
   pdf.roundedRect(x, y, width, height, 2, 2, "FD");
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(7.5);
-  pdf.setTextColor(44, 54, 64);
+  pdf.setTextColor(c.text[0], c.text[1], c.text[2]);
   drawPdfText(pdf, lines, x + 3, y + 6);
   return height;
 }
@@ -655,6 +683,7 @@ function drawAnnotatedScene(
         const highlighted = row.text.slice(start, end);
         const textLeft = rowTextLeft(pdf, row);
         if (kind === "add") pdf.setFillColor(190, 227, 186);
+        else if (kind === "change") pdf.setFillColor(255, 205, 150);
         else pdf.setFillColor(255, 244, 151);
         pdf.rect(
           textLeft + pdfTextWidth(pdf, prefix) - 0.6,
@@ -673,7 +702,7 @@ function drawAnnotatedScene(
       y += lineHeight;
     });
 
-    const cards: { text: string; anchorX: number; anchorY: number }[] = [];
+    const cards: { text: string; anchorX: number; anchorY: number; kind: ChangeKind }[] = [];
     noteAnchors
       .filter(({ span, deletionAt }) =>
         pageRows.some((row) =>
@@ -682,7 +711,7 @@ function drawAnnotatedScene(
             : deletionAt !== undefined && deletionAt >= row.rangeStart && deletionAt <= row.rangeEnd,
         ),
       )
-      .forEach(({ text, span, deletionAt }) => {
+      .forEach(({ text, span, deletionAt, kind }) => {
         const row =
           pageRows.find((candidate) =>
             span
@@ -693,6 +722,7 @@ function drawAnnotatedScene(
           text,
           anchorX: row ? rowAnchorX(pdf, row, { span, deletionAt }) : scriptX + scriptWidth,
           anchorY: row ? rowY.get(row) ?? scriptY : scriptY,
+          kind: kind ?? "note",
         });
       });
 
@@ -704,8 +734,9 @@ function drawAnnotatedScene(
 
     let cardY = noteY;
     cards.forEach((card) => {
-      const height = drawAnnotationCard(pdf, card.text, noteX, cardY, noteWidth);
-      pdf.setDrawColor(151, 171, 183);
+      const height = drawAnnotationCard(pdf, card.text, noteX, cardY, noteWidth, card.kind);
+      const border = KIND_CARD[card.kind].border;
+      pdf.setDrawColor(border[0], border[1], border[2]);
       pdf.line(Math.min(card.anchorX + 2, noteRailX - 3), card.anchorY - 1, noteRailX, cardY + 6);
       cardY += height + 5;
     });
@@ -751,23 +782,17 @@ function drawChangesLegend(pdf: jsPDF) {
   pdf.text("HOW TO READ THIS REVISION", x, y);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(8.5);
-  const swatch = (r: number, g: number, b: number, label: string) => {
+  const swatch = (fill: [number, number, number], border: [number, number, number], label: string) => {
     y += 8.5;
-    pdf.setFillColor(r, g, b);
-    pdf.setDrawColor(151, 171, 183);
+    pdf.setFillColor(fill[0], fill[1], fill[2]);
+    pdf.setDrawColor(border[0], border[1], border[2]);
     pdf.rect(x, y - 3, 7, 4, "FD");
     pdf.setTextColor(60, 68, 78);
     pdf.text(label, x + 11, y);
   };
-  swatch(190, 227, 186, "Added  -  new in this draft");
-  swatch(255, 244, 151, "Changed  -  reworded (old wording is shown in the margin)");
-  y += 8.5;
-  pdf.setTextColor(60, 68, 78);
-  pdf.text("Deleted  -  shown as a card in the right margin", x + 11, y);
-  y += 10;
-  pdf.setFontSize(8);
-  pdf.setTextColor(120, 126, 134);
-  pdf.text("Margin cards explain each mark; your review notes appear there too.", x, y);
+  swatch([190, 227, 186], [120, 170, 110], "Added  -  new in this draft");
+  swatch([255, 205, 150], [210, 150, 90], "Changed  -  reworded (old wording shown in the margin)");
+  swatch([250, 214, 214], [200, 90, 90], "Deleted  -  removed (shown in a red card in the margin)");
 }
 
 export async function exportFullPdf(project: Project, data: AppData, revisionMarked = false) {
