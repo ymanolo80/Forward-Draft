@@ -75,7 +75,18 @@ describe("reconcileWithAppStore", () => {
     expect(merged.activeProjectId).toBe("a");
   });
 
-  it("builds the per-project backup filename", () => {
-    expect(appProjectFileName("project-123")).toBe("project-123.frdx");
+  it("names backups by readable title alone, sanitising unsafe chars", () => {
+    const p = { projectId: "project_abcd1234", title: "The Lighthouse Keeper" };
+    expect(appProjectFileName(p, [p])).toBe("The Lighthouse Keeper.frdx");
+    expect(appProjectFileName({ projectId: "project_zzzzzzzz", title: 'Act 1: "Dawn"/End' }, [])).toBe("Act 1- -Dawn--End.frdx");
+    expect(appProjectFileName({ projectId: "project_qqqqqqqq", title: "   " }, [])).toBe("Untitled.frdx");
+  });
+
+  it("adds a unique suffix only when two projects share a title", () => {
+    const a = { projectId: "project_aaaaaaaa", title: "Same" };
+    const b = { projectId: "project_bbbbbbbb", title: "Same" };
+    expect(appProjectFileName(a, [a, b])).toBe("Same aaaaaaaa.frdx");
+    expect(appProjectFileName(b, [a, b])).toBe("Same bbbbbbbb.frdx");
+    expect(appProjectFileName(a, [a])).toBe("Same.frdx"); // no clash → clean
   });
 });

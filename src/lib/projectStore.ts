@@ -10,8 +10,52 @@ import { PROJECT_FILE_EXTENSION, parseProjectFileText, serializeProjectFile, typ
 
 const APP_FILE_EXTENSION = PROJECT_FILE_EXTENSION.replace(/^\./, "");
 
-export function appProjectFileName(projectId: string): string {
-  return `${projectId}${PROJECT_FILE_EXTENSION}`;
+// Strip filesystem-unsafe characters so the durable file can be named after the
+// project title (readable in Files/iCloud) instead of its UUID.
+function sanitizeFileTitle(title: string): string {
+  const cleaned = (title || "")
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/^[.\s]+|[.\s]+$/g, "")
+    .slice(0, 80)
+    .trim();
+  return cleaned || "Untitled";
+}
+
+type ProjectNameInfo = { projectId: string; title: string };
+
+// Durable filename: just the readable title — clean in Files. A short id tail is
+// appended ONLY when another project sanitises to the same title, so two
+// same-named projects can't collide onto one file (which would lose one on
+// recovery). The tail is the LAST 8 chars (random UUID tail); the first 8 are
+// identical across ids (they share a "project_" prefix).
+export function appProjectFileName(project: ProjectNameInfo, allProjects: ReadonlyArray<ProjectNameInfo> = []): string {
+  const base = sanitizeFileTitle(project.title);
+  const collides = allProjects.some((other) => other.projectId !== project.projectId && sanitizeFileTitle(other.title) === base);
+  const suffix = collides ? ` ${project.projectId.slice(-8)}` : "";
+  return `${base}${suffix}${PROJECT_FILE_EXTENSION}`;
+}
+
+// Delete every stored file that belongs to this project except `keepName`,
+// identifying ownership by the projectId INSIDE each file. This self-heals any
+// past naming scheme (legacy <id>.frdx, renamed titles) without guessing from
+// filenames. ponytail: re-reads all app files per save — fine for a personal
+// library; add a last-written-name cache if the store ever grows large.
+async function pruneProjectFiles(projectId: string, keepName?: string): Promise<void> {
+  if (!isNativeFileServiceAvailable()) return;
+  const files = await listAppProjectFiles(APP_FILE_EXTENSION);
+  await Promise.all(
+    files.map(async (file) => {
+      if (file.name === keepName) return;
+      let ownerId: string | undefined;
+      try {
+        ownerId = parseProjectFileText(file.text).project.projectId;
+      } catch {
+        return; // unreadable backup: leave it alone (recovery skips it too)
+      }
+      if (ownerId === projectId) await deleteAppProjectFile(file.name);
+    }),
+  );
 }
 
 export interface PersistProjectOutcome {
@@ -30,7 +74,11 @@ export async function persistProject(project: Project, data: AppData): Promise<P
 
   if (isNativeFileServiceAvailable()) {
     const text = serializeProjectFile(project, data);
-    durablySaved = await writeAppProjectFile(appProjectFileName(project.projectId), text);
+    const name = appProjectFileName(project, data.projects);
+    durablySaved = await writeAppProjectFile(name, text);
+    // Only after the new copy is safely written, drop any older-named copies of
+    // this project (renamed title, legacy <id>.frdx) so it keeps one file each.
+    if (durablySaved) await pruneProjectFiles(project.projectId, name);
   }
 
   let fileReference: ProjectFileReference | undefined;
@@ -45,8 +93,9 @@ export async function persistProject(project: Project, data: AppData): Promise<P
   return { durablySaved, fileReference };
 }
 
+// Deletes every stored copy of a project (no file kept).
 export async function deleteProjectFromAppStore(projectId: string): Promise<void> {
-  await deleteAppProjectFile(appProjectFileName(projectId));
+  await pruneProjectFiles(projectId);
 }
 
 // Reads and parses every project backup in the app-owned store. Corrupt or
