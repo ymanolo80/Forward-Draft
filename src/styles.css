@@ -4040,62 +4040,107 @@ mark {
   }
 }
 
+/* Tools toggle is phone-only (desktop/iPad always show the tools column). */
+.topbar-tools-toggle {
+  display: none;
+}
+
 /* iPhone portrait (<=480px, below iPad's 768 — iPad/Mac untouched).
-   One scrolling column, content-first and uniform across modes; Options as a
-   bottom sheet so it can't run off-screen. */
+   The active document fills the screen and scrolls; Tools and Scenes are
+   off-canvas drawers toggled from the top bar; Options drops as a sheet. */
 @media (max-width: 480px) {
+  /* scroll fix: constrain the panel to the viewport (flex-basis 0, not content
+     height) so its content actually overflows and scrolls */
   .mode-panel {
-    flex: 1 1 auto;
-    height: auto;
+    flex: 1 1 0;
     min-height: 0;
+    height: auto;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 12px 10px calc(40px + var(--safe-bottom));
+    padding: 12px 12px calc(40px + var(--safe-bottom));
   }
 
+  /* the document is the only thing in flow → one full-width column */
   .mode-workspace,
   .review-layout-shell,
   .review-layout-shell.scenes-collapsed,
   .rewrite-layout,
   .rewrite-layout.queue-collapsed {
-    grid-template-columns: 1fr;
+    display: block;
     height: auto;
     min-height: 0;
   }
-
-  /* drop the explicit column/row pinning that forces a 2nd track in a 1-col grid */
-  .review-layout-shell.scenes-collapsed .review-stage,
-  .review-layout-shell.scenes-collapsed .mode-tools,
-  .rewrite-layout.queue-collapsed .rewrite-main,
-  .rewrite-layout.queue-collapsed .rewrite-tools {
+  .document-stage,
+  .review-stage,
+  .rewrite-main {
+    overflow: visible;
     grid-column: auto;
     grid-row: auto;
   }
 
-  /* uniform order: primary content first, scene/queue nav next, tools last */
-  .document-stage,
-  .review-stage,
-  .rewrite-main {
+  /* centered top bar: logo + mode tabs on top, utility buttons centered below.
+     Higher z-index than the drawers so its toggle buttons stay tappable. */
+  .global-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 8px 10px;
+    z-index: 50;
+  }
+  .topbar-center {
+    flex: 1 1 100%;
+    order: 0;
+  }
+  .topbar-project {
     order: 1;
-    overflow: visible;
   }
-  .review-scene-pane,
-  .rewrite-queue {
+  .topbar-right {
     order: 2;
-    position: static;
-    max-height: 42dvh;
+    flex: 0 0 auto;
+    justify-content: center;
   }
-  .mode-tools,
-  .write-workspace .mode-tools {
-    order: 3;
-    position: static;
-    max-height: none;
+  .topbar-tools-toggle {
+    display: inline-flex;
   }
 
-  /* Options: drop from the button's left edge (it sits left on its row),
-     cap width to the viewport and scroll — can't run off-screen.
-     (Can't use a fixed bottom sheet: the topbar's backdrop-filter would
-     trap position:fixed to the topbar, not the viewport.) */
+  /* Tools & Scenes as side drawers (fixed, out of flow) */
+  .mode-tools,
+  .review-scene-pane,
+  .rewrite-queue {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: min(86vw, 360px);
+    max-height: none;
+    z-index: 40;
+    overflow-y: auto;
+    padding-top: calc(104px + var(--safe-top));
+    padding-bottom: calc(16px + var(--safe-bottom));
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
+  }
+  /* Tools: slides in from the right, off-canvas until .tools-open */
+  .mode-tools,
+  .write-workspace .mode-tools {
+    right: 0;
+    left: auto;
+    border-radius: 14px 0 0 14px;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+  }
+  .app.tools-open .mode-tools {
+    transform: none;
+  }
+  /* Scenes: from the left; only in the DOM when open, so just position it */
+  .review-scene-pane,
+  .rewrite-queue {
+    left: 0;
+    right: auto;
+    border-radius: 0 14px 14px 0;
+  }
+
+  /* Options: drop from the button, width-capped & scrollable (a fixed bottom
+     sheet is trapped by the top bar's backdrop-filter, so keep it absolute). */
   .options-menu .menu-popover {
     left: 0;
     right: auto;

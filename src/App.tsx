@@ -114,6 +114,8 @@ export function App() {
   const [loaded, setLoaded] = useState(false);
   const [history, setHistory] = useState<HistoryMap>({});
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false); // phone: tools drawer
+  useEffect(() => setToolsOpen(false), [mode]); // close drawer when switching modes
   const [onboardingOpen, setOnboardingOpen] = useState(() => {
     try {
       return !localStorage.getItem("forward-draft-onboarded");
@@ -676,7 +678,7 @@ export function App() {
   };
 
   return (
-    <div className={`app mode-${mode}`} style={appStyle}>
+    <div className={`app mode-${mode}${toolsOpen ? " tools-open" : ""}`} style={appStyle}>
       <header className="global-topbar">
         <div className="topbar-project">
           {hasSceneListToggle ? (
@@ -690,6 +692,15 @@ export function App() {
               <span>{sceneListLabel}</span>
             </button>
           ) : null}
+          <button
+            className="topbar-pane-toggle topbar-tools-toggle"
+            onClick={() => setToolsOpen((open) => !open)}
+            aria-expanded={toolsOpen}
+            aria-label="Toggle tools"
+            title="Toggle tools"
+          >
+            <span>Tools</span>
+          </button>
         </div>
 
         <div className="topbar-center">

@@ -135,7 +135,7 @@ export function ReviewMode({
   const [reviewView, setReviewView] = useState<ReviewView>("scene");
   const [compare, setCompare] = useState(false);
   const [compareVersionId, setCompareVersionId] = useState("");
-  const [scenePaneOpen, setScenePaneOpen] = useState(true);
+  const [scenePaneOpen, setScenePaneOpen] = useState(() => !window.matchMedia("(max-width: 480px)").matches);
   const [showNotes, setShowNotes] = useState(true);
   const [reordering, setReordering] = useState(false);
   const [sceneListFilter, setSceneListFilter] = useState<SceneListFilter>("all");
