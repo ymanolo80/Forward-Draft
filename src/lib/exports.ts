@@ -621,6 +621,16 @@ function drawAnnotationCard(pdf: jsPDF, text: string, x: number, y: number, widt
   return height;
 }
 
+// The app saves every note as type "Rewrite", so the note's colour is inferred
+// from the words the writer naturally uses — no tagging required.
+function noteKind(noteText: string): ChangeKind {
+  const t = (noteText || "").toLowerCase();
+  if (/\b(delete|deleted|deleting|cut|remove|removed|removing|omit|drop)\b/.test(t)) return "delete";
+  if (/\b(add|added|adding|insert|inserted)\b/.test(t)) return "add";
+  if (/\b(change|changed|changing|rewrite|reword|revise|revised|replace)\b/.test(t)) return "change";
+  return "note";
+}
+
 function drawAnnotatedScene(
   pdf: jsPDF,
   sceneOrder: number,
@@ -645,9 +655,7 @@ function drawAnnotatedScene(
   const rows = layoutAnnotatedRows(pdf, sceneText);
   const noteAnchors: ChangeAnchor[] = notes.flatMap((note) => {
     const anchor = mappedNoteAnchor(note, oldVersionsById.get(note.versionId), sceneText, currentVersionId);
-    // Colour review notes to match the change scheme: Cut = delete (red),
-    // Rewrite = change (orange); other note types stay neutral.
-    const kind: ChangeKind = note.noteType === "Cut" ? "delete" : note.noteType === "Rewrite" ? "change" : "note";
+    const kind = noteKind(note.noteText);
     return anchor ? [{ kind, text: noteCardText(note), ...anchor }] : [];
   });
   const changeAnchors = diffChangeAnchors(baseVersionText, sceneText).filter((change) => !noteAnchors.some((noteAnchor) => anchorsOverlap(change, noteAnchor)));
