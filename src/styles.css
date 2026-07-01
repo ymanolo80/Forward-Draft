@@ -15,7 +15,6 @@
   --highlight: #ffdf6d;
   --note: #fff6d8;
   --green: #2f6f63;
-  --blue: #315f9c;
   --shadow: 0 18px 50px rgba(33, 37, 43, 0.12);
   --draft-font-family: "Courier Prime", "Courier New", Courier, monospace;
   --draft-font-size: 16px;
@@ -1187,7 +1186,7 @@ mark {
   border-radius: 50%;
   border-color: #9bb6be;
   background: var(--page);
-  color: #315f9c;
+  color: var(--accent);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 10px;
   font-weight: 800;
@@ -1576,9 +1575,9 @@ mark {
 
 .drop-line {
   height: 0;
-  border-top: 3px solid #315f9c;
+  border-top: 3px solid var(--accent);
   border-radius: 999px;
-  box-shadow: 0 0 0 3px rgba(49, 95, 156, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
   pointer-events: none;
 }
 
@@ -2057,8 +2056,8 @@ mark {
   --menu-surface: rgba(244, 240, 233, 0.82);
   --control: rgba(255, 255, 255, 0.48);
   --control-hover: rgba(255, 255, 255, 0.74);
-  --selected: rgba(0, 122, 255, 0.18);
-  --selected-strong: rgba(0, 122, 255, 0.32);
+  --selected: rgba(184, 111, 0, 0.16);
+  --selected-strong: rgba(184, 111, 0, 0.3);
   --selected-text: var(--accent);
   --line: rgba(48, 45, 40, 0.17);
   --soft-line: rgba(48, 45, 40, 0.1);
@@ -2075,9 +2074,8 @@ mark {
   --highlight: #fff08a;
   --note: #fff7d6;
   --green: #248a3d;
-  --blue: #007aff;
-  --accent: #007aff;
-  --accent-warm: #ffcc00;
+  --accent: #9a5c00;
+  --accent-warm: #e3a02c;
   --danger: #ff3b30;
   --radius-sm: 12px;
   --radius-md: 22px;
@@ -2104,8 +2102,8 @@ mark {
     --menu-surface: rgba(32, 31, 30, 0.78);
     --control: rgba(76, 76, 82, 0.48);
     --control-hover: rgba(92, 92, 99, 0.66);
-    --selected: rgba(10, 132, 255, 0.24);
-    --selected-strong: rgba(10, 132, 255, 0.38);
+    --selected: rgba(227, 160, 44, 0.22);
+    --selected-strong: rgba(227, 160, 44, 0.36);
     --selected-text: #f5f5f7;
     --line: rgba(245, 241, 232, 0.16);
     --soft-line: rgba(245, 241, 232, 0.1);
@@ -2122,9 +2120,8 @@ mark {
     --highlight: #8f761b;
     --note: #332b18;
     --green: #30d158;
-    --blue: #0a84ff;
-    --accent: #0a84ff;
-    --accent-warm: #ffd60a;
+    --accent: #e3a02c;
+    --accent-warm: #f1c978;
     --danger: #ff453a;
     --shadow: 0 28px 76px rgba(0, 0, 0, 0.52);
     --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 48px rgba(0, 0, 0, 0.38);
@@ -2162,8 +2159,8 @@ mark {
   --menu-surface: rgba(32, 31, 30, 0.78);
   --control: rgba(76, 76, 82, 0.48);
   --control-hover: rgba(92, 92, 99, 0.66);
-  --selected: rgba(10, 132, 255, 0.24);
-  --selected-strong: rgba(10, 132, 255, 0.38);
+  --selected: rgba(227, 160, 44, 0.22);
+  --selected-strong: rgba(227, 160, 44, 0.36);
   --selected-text: #f5f5f7;
   --line: rgba(245, 241, 232, 0.16);
   --soft-line: rgba(245, 241, 232, 0.1);
@@ -2180,9 +2177,8 @@ mark {
   --highlight: #8f761b;
   --note: #332b18;
   --green: #30d158;
-  --blue: #0a84ff;
-  --accent: #0a84ff;
-  --accent-warm: #ffd60a;
+  --accent: #e3a02c;
+  --accent-warm: #f1c978;
   --danger: #ff453a;
   --shadow: 0 28px 76px rgba(0, 0, 0, 0.52);
   --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 48px rgba(0, 0, 0, 0.38);
