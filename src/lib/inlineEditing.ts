@@ -1,4 +1,4 @@
-export function markerTag(marker: string) {
+function markerTag(marker: string) {
   if (marker === "**") return "strong";
   if (marker === "*") return "em";
   if (marker === "_") return "u";

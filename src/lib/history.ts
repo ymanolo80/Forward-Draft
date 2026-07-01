@@ -60,7 +60,7 @@ export function applyProjectSnapshot(data: AppData, snapshot: ProjectSnapshot): 
   };
 }
 
-export function snapshotsEqual(left: ProjectSnapshot | undefined, right: ProjectSnapshot | undefined): boolean {
+function snapshotsEqual(left: ProjectSnapshot | undefined, right: ProjectSnapshot | undefined): boolean {
   if (!left || !right) return left === right;
   return JSON.stringify(left) === JSON.stringify(right);
 }

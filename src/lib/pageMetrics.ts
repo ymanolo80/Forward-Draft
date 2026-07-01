@@ -29,7 +29,7 @@ export function screenplayPageCount(text: string) {
   return Math.max(1, Math.ceil(lines / 55));
 }
 
-export function prosePageCount(text: string) {
+function prosePageCount(text: string) {
   return Math.max(1, Math.ceil(wordCount(text) / 250));
 }
 

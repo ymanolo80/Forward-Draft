@@ -216,16 +216,6 @@ export async function writeAppProjectFile(name: string, text: string): Promise<b
   }
 }
 
-export async function readAppProjectFile(name: string): Promise<string | undefined> {
-  if (!isNativeFileServiceAvailable()) return undefined;
-  try {
-    const result = await NativeForwardDraftFiles.readAppFile({ name });
-    return typeof result.text === "string" ? result.text : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 export async function listAppProjectFiles(extension: string): Promise<AppStoredFile[]> {
   if (!isNativeFileServiceAvailable()) return [];
   try {

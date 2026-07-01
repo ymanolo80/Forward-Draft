@@ -1,6 +1,6 @@
 import type { AppData, Project, ProjectFileReference } from "../types";
 import { importFountainProject } from "./fountain";
-import { appendProjectFileDocument, parseProjectFileText, projectTitleFromFileName } from "./projectFile";
+import { appendProjectFileDocument, parseProjectFileText, projectTitleFromFileName, uniqueTitle } from "./projectFile";
 import { importFdxProject, importTxtProject, type ImportedScriptProject } from "./scriptImport";
 
 export interface TextFileSource {
@@ -20,16 +20,6 @@ export interface ImportScriptResult {
   data: AppData;
   projectId: string;
   title: string;
-}
-
-function uniqueProjectTitle(title: string, data: AppData) {
-  const existing = new Set(data.projects.map((project) => project.title));
-  if (!existing.has(title)) return title;
-  const copyTitle = `${title} Copy`;
-  if (!existing.has(copyTitle)) return copyTitle;
-  let index = 2;
-  while (existing.has(`${copyTitle} ${index}`)) index += 1;
-  return `${copyTitle} ${index}`;
 }
 
 export function openProjectFileIntoData(data: AppData, source: TextFileSource): OpenProjectResult {
@@ -96,7 +86,7 @@ export function importFdxIntoData(data: AppData, source: TextFileSource): Import
 }
 
 function appendImportedScript(data: AppData, imported: ImportedScriptProject): ImportScriptResult {
-  const title = uniqueProjectTitle(imported.project.title, data);
+  const title = uniqueTitle(imported.project.title, data);
   const project: Project = {
     ...imported.project,
     title,

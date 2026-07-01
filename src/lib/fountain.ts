@@ -47,17 +47,6 @@ export function blockToFountain(block: DraftBlock) {
   return text;
 }
 
-export function exportFountain(project: Project, scenes: Scene[], versions: SceneVersion[]) {
-  return scenes
-    .sort((a, b) => a.order - b.order)
-    .map((scene) => {
-      const current = versions.find((version) => version.versionId === scene.currentVersionId);
-      return current?.text.trim() ?? "";
-    })
-    .filter(Boolean)
-    .join("\n\n");
-}
-
 interface FountainTitlePage {
   title?: string;
   writtenBy?: string;
@@ -317,23 +306,4 @@ export function draftBlocksToScenes(projectId: string, blocks: DraftBlock[], sec
   }
   flush();
   return { scenes, versions };
-}
-
-export function extractAutocomplete(blocks: DraftBlock[]) {
-  const characters = new Set<string>();
-  const locations = new Set<string>();
-  const times = new Set<string>(["DAY", "NIGHT", "MORNING", "EVENING", "CONTINUOUS", "LATER"]);
-
-  for (const block of blocks) {
-    const value = block.text.trim();
-    if (!value) continue;
-    if (block.element === "Character") characters.add(value.toUpperCase());
-    if (block.element === "Scene Heading") {
-      const parts = value.split(" - ");
-      if (parts[0]) locations.add(parts[0].replace(/^(INT\.|EXT\.|INT\/EXT\.)\s*/, "").trim().toUpperCase());
-      if (parts[1]) times.add(parts[1].trim().toUpperCase());
-    }
-  }
-
-  return [...characters, ...locations, ...times, ...scriptElements];
 }

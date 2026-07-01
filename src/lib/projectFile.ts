@@ -1,10 +1,10 @@
 import type { AppData, CoverPage, DraftBlock, Highlight, NoteType, Priority, Project, ReviewNote, RewriteTask, RewriteTaskStatus, Scene, SceneStatus, SceneVersion, ScriptElement, WritingMode } from "../types";
 import { createId, nowIso } from "./ids";
 
-export const PROJECT_FILE_SCHEMA_VERSION = 1;
+const PROJECT_FILE_SCHEMA_VERSION = 1;
 export const PROJECT_FILE_EXTENSION = ".frdx";
 export const PROJECT_FILE_MIME = "application/vnd.forward-draft.project";
-export const PROJECT_FILE_SIGNATURE = `FRDX/${PROJECT_FILE_SCHEMA_VERSION}`;
+const PROJECT_FILE_SIGNATURE = `FRDX/${PROJECT_FILE_SCHEMA_VERSION}`;
 
 const APP_NAME = "Forward Draft";
 const PROJECT_FILE_KIND = "forward-draft-project";
@@ -428,7 +428,7 @@ function hasAnyIdCollision(document: ProjectFileDocument, data: AppData) {
   return importedIds(document).some((id) => ids.has(id));
 }
 
-function uniqueTitle(title: string, data: AppData) {
+export function uniqueTitle(title: string, data: AppData) {
   const existing = new Set(data.projects.map((project) => project.title));
   if (!existing.has(title)) return title;
   const copyTitle = `${title} Copy`;

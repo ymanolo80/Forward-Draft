@@ -1258,7 +1258,6 @@ mark {
 }
 
 .note-popover header,
-.drawer header,
 .rewrite-card header {
   display: flex;
   align-items: flex-start;
@@ -1266,8 +1265,7 @@ mark {
   gap: 10px;
 }
 
-.note-popover header button,
-.drawer header button {
+.note-popover header button {
   min-height: 28px;
   border-color: transparent;
   background: transparent;
@@ -1293,13 +1291,6 @@ mark {
   background: var(--green);
   color: #fff;
   border-color: var(--green);
-}
-
-.drawer-scrim {
-  position: fixed;
-  inset: 58px 0 0;
-  background: rgba(31, 35, 40, 0.08);
-  z-index: 28;
 }
 
 .modal-scrim {
@@ -1421,30 +1412,6 @@ mark {
 .cover-preview textarea {
   min-height: 92px;
   resize: vertical;
-}
-
-.drawer {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: min(360px, 88vw);
-  padding: 16px;
-  border: 1px solid var(--line);
-  background: var(--page);
-  box-shadow: var(--shadow);
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 14px;
-}
-
-.left-drawer {
-  left: 0;
-  border-left: 0;
-}
-
-.right-drawer {
-  right: 0;
-  border-right: 0;
 }
 
 .scene-drawer-list,
@@ -2066,14 +2033,6 @@ mark {
     font-size: 14px;
   }
 
-  .drawer-scrim {
-    inset: 54px 0 0;
-  }
-
-  .drawer {
-    width: 88vw;
-  }
-
   .rewrite-card {
     padding: 12px;
   }
@@ -2380,8 +2339,7 @@ textarea:focus-visible,
 
 .menu-popover,
 .cover-editor,
-.note-popover,
-.drawer {
+.note-popover {
   border-color: var(--line);
   border-radius: var(--radius-panel);
   background: color-mix(in srgb, var(--surface-elevated) 82%, transparent);
@@ -2624,8 +2582,7 @@ textarea:focus-visible,
 }
 
 .tool-section .tool-section-title-row button,
-.review-scene-pane .scene-pane-actions button,
-.drawer .scene-pane-actions button {
+.review-scene-pane .scene-pane-actions button {
   width: auto;
   min-height: 28px;
   padding-inline: 10px;
@@ -3184,7 +3141,6 @@ mark {
   color: var(--muted);
 }
 
-.drawer-scrim,
 .modal-scrim {
   background: rgba(0, 0, 0, 0.18);
   -webkit-backdrop-filter: blur(10px);
@@ -3443,7 +3399,6 @@ mark {
   .note-popover,
   .cover-editor,
   .file-refresh-dialog,
-  .drawer,
   .script-page,
   .rewrite-card {
     animation: soft-arrive 180ms ease both;
