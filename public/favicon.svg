@@ -1,21 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
   <title>Forward Draft mark</title>
-  <desc>Three ascending rounded amber bars representing Write, Review and Rewrite.</desc>
-  <defs>
-    <linearGradient id="paperGradient" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FBFAF7"/>
-      <stop offset="1" stop-color="#EFECE6"/>
-    </linearGradient>
-    <linearGradient id="darkGradient" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1B1A18"/>
-      <stop offset="1" stop-color="#111214"/>
-    </linearGradient>
-    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#000000" flood-opacity="0.12"/>
-    </filter>
-  </defs>
-  
+  <desc>Three rounded amber bars, shortening like script lines mid-flow, representing Write, Review and Rewrite.</desc>
   <g transform="translate(180 304) scale(1.35)">
     <rect x="0" y="0" width="492" height="96" rx="48" fill="#B86F00"/>
     <rect x="0" y="118" width="380" height="84" rx="42" fill="#E3A02C"/>
